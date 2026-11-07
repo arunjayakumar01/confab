@@ -1,0 +1,61 @@
+services:
+  twin:
+    build:
+      context: .
+      dockerfile: services/google-twin/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      PRISM_RELAY_PUSH_URL: http://relay:8080/events/push
+      PRISM_PUSH_SECRET: dev
+      PRISM_PUBSUB_EMULATOR_HOST: floci-gcp:4588
+      PRISM_PUBSUB_TOPIC: projects/floci-local/topics/prism-events
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/twin/users"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  relay:
+    build:
+      context: .
+      dockerfile: services/relay/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PRISM_TWIN_BASE: http://twin:8081
+      PRISM_PUSH_SECRET: dev
+      PRISM_DB: /data/relay.db
+    volumes:
+      - relay-data:/data
+    depends_on:
+      - twin
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  floci-gcp:
+    image: floci/floci-gcp:latest
+    ports:
+      - "4588:4588"
+    restart: unless-stopped
+
+  pubsub-setup:
+    image: node:22-alpine
+    depends_on:
+      - floci-gcp
+      - relay
+    volumes:
+      - ./tests:/tests:ro
+    environment:
+      PUBSUB_EMULATOR_HOST: floci-gcp:4588
+      PRISM_PUSH_ENDPOINT: http://relay:8080/events/push?secret=dev
+    command: ["node", "/tests/floci-setup.mjs"]
+    restart: "no"
+
+volumes:
+  relay-data:

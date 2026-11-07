@@ -1,0 +1,12 @@
+target/
+node_modules/
+dist/
+*.db
+*.db-*
+.env
+.DS_Store
+apps/desktop/src-tauri/gen/
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+.env.real
+docs/proof/

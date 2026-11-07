@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Confab uses the microphone for huddles, in the Google Meet window and in voice calls with people on Confab.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Confab uses the camera when you turn it on in a huddle's Google Meet window.</string>
+</dict>
+</plist>
