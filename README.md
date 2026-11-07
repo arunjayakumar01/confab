@@ -13,6 +13,7 @@
   <img alt="Linux: planned" src="https://img.shields.io/badge/Linux-planned-ffc53d?style=flat-square&logo=linux&logoColor=black">
   <img alt="Windows: planned" src="https://img.shields.io/badge/Windows-planned-ffc53d?style=flat-square&logoColor=black">
   <img alt="Built with Tauri 2" src="https://img.shields.io/badge/Tauri-2-121c3a?style=flat-square&logo=tauri&logoColor=white">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-121c3a?style=flat-square"></a>
   <img alt="Rust and React" src="https://img.shields.io/badge/Rust%20%2B%20React%2019-121c3a?style=flat-square&logo=rust&logoColor=white">
 </p>
 
@@ -207,6 +208,10 @@ The interface already runs in a browser against the local stand-in for Google.
 | `crates/prism-proto` | Types shared by all of the above |
 
 Confab was first called Prism, and internal names such as `prism-proto` and `co.prism.desktop` keep that name so existing sign-ins and notes carry over. The [architecture guide](docs/ARCHITECTURE.md) has the API tables, relay protocol and design notes.
+
+## License
+
+[MIT](LICENSE)
 
 ## Disclaimer
 
