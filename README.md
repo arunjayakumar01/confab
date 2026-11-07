@@ -20,6 +20,7 @@
 </p>
 
 <p align="center">
+  <a href="https://arunjayakumar01.github.io/confab/">Website</a> &nbsp;&nbsp;
   <a href="#google-chat-desktop-app-features">Features</a> &nbsp;&nbsp;
   <a href="#run-confab-locally">Run it</a> &nbsp;&nbsp;
   <a href="#connect-your-google-workspace-account">Connect Workspace</a> &nbsp;&nbsp;
@@ -256,6 +257,7 @@ No. Confab is an independent project and is not affiliated with Google.
 
 ## Documentation
 
+- [Website](https://arunjayakumar01.github.io/confab/)
 - [Features](docs/FEATURES.md)
 - [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)

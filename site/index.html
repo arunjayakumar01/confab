@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confab: desktop client for Google Chat</title>
+<meta name="description" content="Confab is an unofficial, open source desktop client for Google Chat and Google Workspace, with threads, Meet huddles, Calendar, Tasks and notes in one window.">
+<link rel="canonical" href="https://arunjayakumar01.github.io/confab/">
+<meta name="theme-color" content="#0b1a33">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="assets/confab.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Confab">
+<meta property="og:title" content="Confab: desktop client for Google Chat">
+<meta property="og:description" content="An unofficial, open source desktop client for Google Chat and Google Workspace, with threads, Meet huddles, Calendar, Tasks and notes in one window.">
+<meta property="og:url" content="https://arunjayakumar01.github.io/confab/">
+<meta property="og:image" content="https://arunjayakumar01.github.io/confab/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Confab showing a Google Chat space, with the words: a desktop client for Google Chat">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"SoftwareApplication","name":"Confab","url":"https://arunjayakumar01.github.io/confab/","sameAs":"https://github.com/arunjayakumar01/confab","description":"An unofficial, open source desktop client for Google Chat and Google Workspace, with threads, Meet huddles, Calendar, Tasks and notes in one window.","applicationCategory":"CommunicationApplication","operatingSystem":"macOS","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"image":"https://arunjayakumar01.github.io/confab/assets/social-preview.png","author":{"@type":"Person","name":"Arun Jayakumar","url":"https://github.com/arunjayakumar01"}},
+{"@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Is there a desktop app for Google Chat?","acceptedAnswer":{"@type":"Answer","text":"Confab is an unofficial desktop client for Google Chat. It runs as a desktop app on macOS today and talks to Google's APIs directly, rather than wrapping the Chat website."}},
+{"@type":"Question","name":"Does it work on Windows, Linux or the web?","acceptedAnswer":{"@type":"Answer","text":"Not yet. macOS is the only platform tested so far, and web, Linux and Windows are on the roadmap."}},
+{"@type":"Question","name":"Does it work with a personal Gmail account?","acceptedAnswer":{"@type":"Answer","text":"No. Setup needs a Google Workspace Business or Enterprise organisation and a Google Cloud project inside it."}},
+{"@type":"Question","name":"Is it free and open source?","acceptedAnswer":{"@type":"Answer","text":"Yes. Confab is free under the MIT license. You run the relay yourself, and any Google Cloud costs for your project are yours."}},
+{"@type":"Question","name":"Can I join Google Meet calls and huddles?","acceptedAnswer":{"@type":"Answer","text":"Yes. Calls run in the real Google Meet, in a small window that stays on top. Confab can start a huddle in a named space and show a Join and Decline popup when someone else starts one."}},
+{"@type":"Question","name":"Does everyone on my team need Confab?","acceptedAnswer":{"@type":"Answer","text":"No. Messages reach teammates in Google Chat as usual. Typing indicators, other people's online status and read receipts only come from teammates who also use Confab."}},
+{"@type":"Question","name":"Who can see my messages and tokens?","acceptedAnswer":{"@type":"Answer","text":"Your tokens are stored on your machine, and there is no Confab-hosted server. Your access token and new message events pass through the relay you run, so treat that relay as part of your own infrastructure."}},
+{"@type":"Question","name":"Is Confab made by Google?","acceptedAnswer":{"@type":"Answer","text":"No. Confab is an independent project and is not affiliated with Google."}}
+]}
+]}
+</script>
+<style>
+@font-face{font-family:"Bricolage Grotesque";src:url(fonts/bricolage.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:Figtree;src:url(fonts/figtree.woff2) format("woff2");font-weight:300 900;font-display:swap}
+:root{--bg:#0b1a33;--raised:#13244a;--ink:#f3f7ff;--mute:#b8cbea;--blue:#4c8df6;--link:#8dbcff;--sun:#ffc53d;--line:#ffffff24;--gutter:clamp(16px,5vw,64px);--display:"Bricolage Grotesque",system-ui,sans-serif}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 18px/1.6 Figtree,system-ui,sans-serif;overflow-x:hidden}
+a{color:var(--link);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:3px solid var(--sun);outline-offset:3px;border-radius:4px}
+img{display:block;max-width:100%;height:auto}
+.wrap{max-width:1240px;margin:0 auto;padding:0 var(--gutter)}
+h1,h2,h3{font-family:var(--display);line-height:1.05;letter-spacing:-.025em;margin:0}
+h2{font-size:clamp(36px,5.4vw,68px);font-weight:700}
+p{margin:0}
+.lede{color:var(--mute);max-width:62ch}
+.skip{position:absolute;left:-999px}.skip:focus{left:16px;top:16px;background:var(--ink);color:var(--bg);padding:8px 14px;z-index:5}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:22px;padding-bottom:22px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font:700 22px var(--display);letter-spacing:-.02em}
+.top nav{display:flex;gap:26px;font-size:16px}
+.top nav a{color:var(--mute);text-decoration:none}.top nav a:hover{color:var(--ink)}
+
+.hero{position:relative;background:radial-gradient(1000px 560px at 12% -8%,#1f4486 0,transparent 70%)}
+.mark{width:36px;height:36px;overflow:visible}
+.mark .c{stroke-dasharray:1;animation:draw .9s cubic-bezier(.3,.7,.2,1) backwards}
+.mark .tail{animation:fade .3s .7s backwards}
+.mark .d{transform-origin:50px 32px;animation:pop .45s .85s cubic-bezier(.3,1.7,.5,1) backwards}
+h1{margin-top:clamp(28px,5vw,64px);font-size:clamp(46px,9vw,124px);font-weight:700;letter-spacing:-.04em;line-height:.98;max-width:13ch}
+.stop{display:inline-block;width:.19em;height:.19em;margin-left:.06em;border-radius:50%;background:var(--sun);animation:pop .45s 1.05s cubic-bezier(.3,1.7,.5,1) backwards,talk 1.2s 1.6s ease-in-out 3}
+.hero .lede{font-size:clamp(19px,2vw,23px);margin-top:26px}
+.cta{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:32px}
+.btn{display:inline-block;background:var(--blue);color:#06122a;font-weight:700;text-decoration:none;padding:14px 24px;border-radius:12px;transition:background .15s}
+.btn:hover{background:#7ab0ff}
+.btn--quiet{background:none;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}.btn--quiet:hover{background:#ffffff14}
+.note{margin-top:20px;font-size:16px;color:var(--mute)}
+.shot{border-radius:14px;box-shadow:0 0 0 1px var(--line),0 30px 70px #00000080}
+.hero .shot{width:100%;margin-top:clamp(40px,6vw,72px);animation:rise .8s .3s cubic-bezier(.2,.7,.2,1) backwards}
+
+section.wrap{margin-top:clamp(84px,11vw,152px)}
+.row{display:grid;grid-template-columns:5fr 8fr;gap:clamp(28px,5vw,72px);align-items:center;margin-top:clamp(52px,7vw,96px)}
+.row--flip{grid-template-columns:8fr 5fr}.row--flip .shot{order:-1}
+.row h3{font-size:clamp(28px,3.2vw,42px);font-weight:700;margin-bottom:14px}
+.row p{color:var(--mute)}
+.rest{display:grid;grid-template-columns:repeat(3,1fr);gap:34px clamp(24px,4vw,56px);margin:clamp(60px,8vw,104px) 0 0;padding-top:40px;border-top:1px solid var(--line)}
+.rest dt{font:700 21px var(--display);letter-spacing:-.015em;margin-bottom:6px}
+.rest dd{margin:0;color:var(--mute);font-size:17px}
+
+.paths{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(36px,6vw,80px);margin-top:44px}
+.paths h3{font-size:30px;font-weight:700;margin-bottom:10px}
+.paths ol{margin:22px 0 0;padding:0;list-style:none;counter-reset:s}
+.paths li{counter-increment:s;margin-top:20px}
+.paths li>span::before{content:counter(s) ". ";color:var(--sun);font-weight:700}
+.code{position:relative;margin-top:8px;background:#07122a;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line)}
+.code pre{margin:0;padding:13px 72px 13px 15px;overflow-x:auto;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.copy{position:absolute;top:7px;right:7px;background:#22345c;border:0;color:var(--ink);font:600 13px Figtree,sans-serif;padding:6px 10px;border-radius:7px;cursor:pointer}
+.copy:hover{background:#2f4678}
+.paths ul{margin:18px 0 0;padding-left:20px;color:var(--mute)}.paths ul li{margin-top:6px}
+.paths p{color:var(--mute)}
+
+.road{margin-top:44px;border-top:1px solid var(--line)}
+.road>div{display:grid;grid-template-columns:minmax(150px,1fr) 118px 3fr;gap:12px clamp(16px,3vw,40px);padding:28px 0;border-bottom:1px solid var(--line)}
+.road h3{font-size:28px;font-weight:700}
+.tag{justify-self:start;align-self:start;font-size:14px;font-weight:700;padding:3px 11px;border-radius:99px;color:var(--sun);box-shadow:inset 0 0 0 1.5px #ffc53d80}
+.tag--on{color:#06122a;background:var(--link);box-shadow:none}
+.road ul{margin:0;padding:0;list-style:none;color:var(--mute);columns:2;column-gap:40px}
+.road li{break-inside:avoid;margin-bottom:8px}
+
+.chat{max-width:860px;margin:44px auto 0;display:flex;flex-direction:column;gap:6px}
+.q{align-self:flex-end;max-width:76%;background:#1a4eaa;border-radius:18px 18px 5px 18px;padding:12px 18px;margin-top:26px}
+.q h3{font:600 18px/1.4 Figtree,sans-serif;letter-spacing:0}
+.a{display:flex;gap:12px;align-items:flex-start;max-width:86%}
+.a img{width:38px;height:38px;flex:none;border-radius:10px}
+.a div{background:var(--raised);border-radius:5px 18px 18px 18px;padding:12px 18px}
+.a b{display:block;font:700 15px var(--display);margin-bottom:2px}
+.a p{color:#dbe6f8}
+
+footer{margin-top:clamp(80px,10vw,136px);padding:36px 0 44px;border-top:1px solid var(--line);font-size:15px;color:var(--mute)}
+footer .wrap{display:grid;gap:12px}
+footer nav{display:flex;flex-wrap:wrap;gap:8px 22px}
+
+@keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{transform:scale(0)}}
+@keyframes talk{50%{transform:scale(1.28)}}
+@keyframes rise{from{opacity:0;transform:translateY(26px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+@media (max-width:860px){
+  .top nav a:not(.gh){display:none}
+  .row,.row--flip,.paths{grid-template-columns:minmax(0,1fr)}
+  .row--flip .shot{order:0}
+  .rest{grid-template-columns:1fr 1fr}
+  .road>div{grid-template-columns:1fr auto}
+  .road ul{grid-column:1/-1;columns:1}
+  .q{max-width:90%}.a{max-width:100%}
+}
+@media (max-width:520px){.rest{grid-template-columns:1fr}.btn{width:100%;text-align:center}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="hero">
+  <header class="wrap top">
+    <a class="brand" href="./"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"> <path class="c" pathLength="1" d="M47.5 16.5A22 22 0 1 0 47.5 47.5" fill="none" stroke="#4c8df6" stroke-width="13" stroke-linecap="round"/> <path class="tail" d="M12 42 5 60l19-7z" fill="#4c8df6"/> <circle class="d" cx="50" cy="32" r="7.5" fill="#ffc53d"/> </svg>Confab</a>
+    <nav aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#setup">Set up</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#questions">Questions</a>
+      <a class="gh" href="https://github.com/arunjayakumar01/confab">GitHub</a>
+    </nav>
+  </header>
+  <main id="main">
+  <div class="wrap">
+    <h1>A desktop client for Google Chat<span class="stop" aria-hidden="true"></span></h1>
+    <p class="lede">Confab is an unofficial, open source app for Google Workspace. Sign in with your account and get your spaces, threads, huddles, calendar, tasks and notes in one window, in sync with Chat everywhere else.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/arunjayakumar01/confab">Get the code on GitHub</a>
+      <a class="btn btn--quiet" href="#setup">Try it without an account</a>
+    </div>
+    <p class="note">Early software. Tested on macOS, built from source, and free under the MIT license.</p>
+    <img class="shot" src="assets/home.png" width="1280" height="820" alt="Confab showing a Google Chat space, with spaces and direct messages in the sidebar" fetchpriority="high">
+  </div>
+
+  <section id="features" class="wrap" aria-labelledby="f">
+    <h2 id="f">Everything in Google Chat, and the rest of your workday beside it</h2>
+    <div class="row">
+      <div><h3>Spaces, messages and threads</h3><p>Spaces, direct messages and group chats share one sidebar. Threads open in a side panel, and messages from the same person group into one clean block. Press ⌘K to jump anywhere.</p></div>
+      <img class="shot" src="assets/thread.png" width="1280" height="820" loading="lazy" alt="Thread panel open beside a Google Chat space in Confab">
+    </div>
+    <div class="row row--flip">
+      <div><h3>Huddles and Google Meet</h3><p>Start a huddle in a named space, or get a Join and Decline popup when someone else starts one. Calls run in the real Google Meet, in a small window that stays on top.</p></div>
+      <img class="shot" src="assets/huddle.png" width="1280" height="820" loading="lazy" alt="A live Google Meet huddle in a space, with the call controls in the Confab sidebar">
+    </div>
+    <div class="row">
+      <div><h3>Google Calendar next to your chats</h3><p>Month, week, day and agenda views. Create events, answer invites, and join a call from the countdown in the top bar.</p></div>
+      <img class="shot" src="assets/calendar.png" width="1280" height="820" loading="lazy" alt="Google Calendar week view inside Confab">
+    </div>
+    <div class="row row--flip">
+      <div><h3>Google Tasks and notes</h3><p>Turn any message into a task in your default Google Tasks list. Notes are saved privately in your own Google Drive, so they appear wherever you sign in.</p></div>
+      <img class="shot" src="assets/notes.png" width="1280" height="820" loading="lazy" alt="Pinned and other notes in Confab">
+    </div>
+    <dl class="rest">
+      <div><dt>File previews</dt><dd>PDFs, Word documents, spreadsheets, zip archives, code, video and audio open inside the app.</dd></div>
+      <div><dt>Several accounts</dt><dd>Keep Google accounts side by side, each with its own unread badge.</dd></div>
+      <div><dt>Shared status</dt><dd>Set your status and do not disturb here, and Gmail and Chat show the same thing.</dd></div>
+      <div><dt>Catching up</dt><dd>Read unreads by space, bookmark messages and jump straight back to them.</dd></div>
+      <div><dt>Local search</dt><dd>Search messages from a cache on your own machine.</dd></div>
+      <div><dt>Careful link previews</dt><dd>Confab asks first by default, because fetching a page shows that site your address.</dd></div>
+    </dl>
+  </section>
+
+  <section id="setup" class="wrap" aria-labelledby="s">
+    <h2 id="s">Two ways to start</h2>
+    <div class="paths">
+      <div>
+        <h3>Look around first</h3>
+        <p>No Google account needed. This runs the interface in your browser with a made-up team. You only need Node and pnpm for this.</p>
+        <ol>
+          <li><span>Get the code</span><div class="code"><pre><code>git clone https://github.com/arunjayakumar01/confab.git</code></pre><button class="copy" type="button">Copy</button></div></li>
+          <li><span>Install</span><div class="code"><pre><code>cd confab &amp;&amp; pnpm -C apps/desktop install</code></pre><button class="copy" type="button">Copy</button></div></li>
+          <li><span>Run, then open localhost:1430</span><div class="code"><pre><code>pnpm -C apps/desktop dev:mock</code></pre><button class="copy" type="button">Copy</button></div></li>
+        </ol>
+      </div>
+      <div>
+        <h3>Connect your Workspace</h3>
+        <p>About ten minutes, and the setup script does most of it. You need:</p>
+        <ul>
+          <li>A Google Workspace Business or Enterprise organisation</li>
+          <li>A Google Cloud project inside it, which you control</li>
+          <li>Admin rights for its consent screen and Chat API settings</li>
+        </ul>
+        <div class="code" style="margin-top:22px"><pre><code>make gcp-setup PROJECT=my-project ACCOUNT=you@your-org</code></pre><button class="copy" type="button">Copy</button></div>
+        <p style="margin-top:18px"><a href="https://github.com/arunjayakumar01/confab#connect-your-google-workspace-account">Read the full setup guide</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="roadmap" class="wrap" aria-labelledby="r">
+    <h2 id="r">Where it's going</h2>
+    <div class="road">
+      <div><h3>macOS</h3><span class="tag tag--on">Available</span><ul><li>Runs against a real Google Workspace account</li><li>Signed and notarised downloads, planned</li><li>Automatic updates, planned</li></ul></div>
+      <div><h3>Web</h3><span class="tag">Planned</span><ul><li>Hosted sign-in, with tokens kept on a server</li><li>A server-side proxy for Google's APIs and attachments</li><li>Background browser notifications</li><li>Installable as a Progressive Web App</li></ul></div>
+      <div><h3>Linux</h3><span class="tag">Planned</span><ul><li>AppImage, .deb and .rpm packages</li><li>Sign-in storage tested on GNOME and KDE</li><li>A polished look without window blur</li><li>Huddles in your signed-in Chrome profile</li><li>Unread counts on the launcher icon</li></ul></div>
+      <div><h3>Windows</h3><span class="tag">Planned</span><ul><li>Signed installer</li><li>Mica and Acrylic glass on Windows 10 and 11</li><li>Huddles in your signed-in Chrome profile</li><li>Unread badge on the taskbar icon</li><li>On-screen shortcut hints that show Ctrl</li></ul></div>
+      <div><h3>Workspace assistant</h3><span class="tag">Planned</span><ul><li>Connect a local LLM, so your prompts and workspace data stay on your machine</li><li>Sign in with Claude to use your Claude account</li><li>Chat across your calendar, tasks, notes and organisation chats</li></ul></div>
+    </div>
+  </section>
+
+  <section id="questions" class="wrap" aria-labelledby="q">
+    <h2 id="q">Questions, answered in chat</h2>
+    <div class="chat">
+      <div class="q"><h3>Is there a desktop app for Google Chat?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>Confab is an unofficial desktop client for Google Chat. It runs as a desktop app on macOS today and talks to Google's APIs directly, rather than wrapping the Chat website.</p></div></div>
+      <div class="q"><h3>Does it work on Windows, Linux or the web?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>Not yet. macOS is the only platform tested so far, and web, Linux and Windows are on the roadmap.</p></div></div>
+      <div class="q"><h3>Does it work with a personal Gmail account?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>No. Setup needs a Google Workspace Business or Enterprise organisation and a Google Cloud project inside it.</p></div></div>
+      <div class="q"><h3>Is it free and open source?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>Yes. Confab is free under the MIT license. You run the relay yourself, and any Google Cloud costs for your project are yours.</p></div></div>
+      <div class="q"><h3>Can I join Google Meet calls and huddles?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>Yes. Calls run in the real Google Meet, in a small window that stays on top. Confab can start a huddle in a named space and show a Join and Decline popup when someone else starts one.</p></div></div>
+      <div class="q"><h3>Does everyone on my team need Confab?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>No. Messages reach teammates in Google Chat as usual. Typing indicators, other people's online status and read receipts only come from teammates who also use Confab.</p></div></div>
+      <div class="q"><h3>Who can see my messages and tokens?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>Your tokens are stored on your machine, and there is no Confab-hosted server. Your access token and new message events pass through the relay you run, so treat that relay as part of your own infrastructure.</p></div></div>
+      <div class="q"><h3>Is Confab made by Google?</h3></div>
+      <div class="a"><img src="assets/confab.svg" alt="" width="38" height="38"><div><b>Confab</b><p>No. Confab is an independent project and is not affiliated with Google.</p></div></div>
+    </div>
+  </section>
+  </main>
+</div>
+<footer>
+  <div class="wrap">
+    <nav aria-label="Footer">
+      <a href="https://github.com/arunjayakumar01/confab">GitHub</a>
+      <a href="https://github.com/arunjayakumar01/confab/blob/main/docs/FEATURES.md">Features</a>
+      <a href="https://github.com/arunjayakumar01/confab/blob/main/docs/TROUBLESHOOTING.md">Troubleshooting</a>
+      <a href="https://github.com/arunjayakumar01/confab/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+      <a href="https://github.com/arunjayakumar01/confab/wiki">Wiki</a>
+      <a href="https://github.com/arunjayakumar01/confab/blob/main/LICENSE">MIT license</a>
+    </nav>
+    <p>Confab is an independent project. It is not affiliated with, endorsed by or supported by Google. Google Chat, Google Meet, Google Calendar, Google Drive and Google Tasks are trademarks of Google LLC.</p>
+  </div>
+</footer>
+<script>
+document.querySelectorAll(".copy").forEach(function (b) {
+  b.addEventListener("click", function () {
+    navigator.clipboard.writeText(b.parentElement.querySelector("code").textContent).then(function () {
+      b.textContent = "Copied";
+      setTimeout(function () { b.textContent = "Copy"; }, 1500);
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@ macOS is the only platform tested so far. Web, Linux and Windows are planned. Se
 
 ## Docs
 
+- [Website](https://arunjayakumar01.github.io/confab/): product overview and FAQ
 - [README](https://github.com/arunjayakumar01/confab/blob/main/README.md): overview, setup, roadmap and FAQ
 - [Features](https://github.com/arunjayakumar01/confab/blob/main/docs/FEATURES.md): spaces, threads, huddles, calendar, tasks, notes and file previews
 - [Troubleshooting](https://github.com/arunjayakumar01/confab/blob/main/docs/TROUBLESHOOTING.md): common setup and runtime problems
