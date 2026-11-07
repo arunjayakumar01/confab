@@ -198,6 +198,14 @@ The interface already runs in a browser against the local stand-in for Google.
 - [ ] Signed and notarised downloads
 - [ ] Automatic updates
 
+### 🤖 Workspace assistant
+
+Ask questions about your workspace and get answers from your own data, using the model you choose.
+
+- [ ] Connect a local LLM, so your prompts and workspace data stay on your machine
+- [ ] Sign in with Claude to use your Claude account
+- [ ] Chat across your calendar, tasks, notes and organisation chats
+
 ## How it fits together
 
 | Part | What it does |
