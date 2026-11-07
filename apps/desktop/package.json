@@ -2,6 +2,11 @@
   "name": "@prism/desktop",
   "private": true,
   "version": "0.1.0",
+  "description": "Confab, an unofficial desktop client for Google Chat and Google Workspace",
+  "license": "MIT",
+  "homepage": "https://github.com/arunjayakumar01/confab",
+  "repository": { "type": "git", "url": "git+https://github.com/arunjayakumar01/confab.git" },
+  "keywords": ["google-chat", "google-workspace", "desktop-client", "tauri", "react"],
   "type": "module",
   "scripts": {
     "dev": "vite",

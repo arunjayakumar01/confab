@@ -1,0 +1,12 @@
+# Confab
+
+> Confab is an unofficial, open source desktop client for Google Chat and Google Workspace, built with Tauri 2, Rust and React 19. It is not affiliated with Google.
+
+macOS is the only platform tested so far. Web, Linux and Windows are planned. Setup needs a Google Workspace Business or Enterprise organisation and a Google Cloud project. Licensed under MIT.
+
+## Docs
+
+- [README](https://github.com/arunjayakumar01/confab/blob/main/README.md): overview, setup, roadmap and FAQ
+- [Features](https://github.com/arunjayakumar01/confab/blob/main/docs/FEATURES.md): spaces, threads, huddles, calendar, tasks, notes and file previews
+- [Troubleshooting](https://github.com/arunjayakumar01/confab/blob/main/docs/TROUBLESHOOTING.md): common setup and runtime problems
+- [Architecture](https://github.com/arunjayakumar01/confab/blob/main/docs/ARCHITECTURE.md): API tables, relay protocol and app commands

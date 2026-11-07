@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you refer to this software, please cite it as below."
+title: "Confab: a desktop client for Google Chat"
+type: software
+authors:
+  - given-names: Arun
+    family-names: Jayakumar
+license: MIT
+repository-code: "https://github.com/arunjayakumar01/confab"
+keywords:
+  - google-chat
+  - google-workspace
+  - desktop-client
+  - tauri

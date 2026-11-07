@@ -11,6 +11,9 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+repository = "https://github.com/arunjayakumar01/confab"
+homepage = "https://github.com/arunjayakumar01/confab"
+keywords = ["google-chat", "google-workspace", "desktop-client", "tauri", "chat"]
 
 [workspace.dependencies]
 prism-proto = { path = "crates/prism-proto" }

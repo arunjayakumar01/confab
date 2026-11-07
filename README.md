@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="docs/assets/banner.png" alt="Confab, a desktop client for Google Chat" width="100%">
+  <img src="docs/assets/banner.png" alt="Confab logo and the words: a desktop client for Google Chat" width="100%">
 </p>
+
+<h1 align="center">Confab: a desktop client for Google Chat</h1>
 
 <p align="center">
   <b>Your Google Chat, in a fast desktop app with a layout that stays out of your way.</b><br>
@@ -18,46 +20,47 @@
 </p>
 
 <p align="center">
-  <a href="#what-you-get">What you get</a> &nbsp;&nbsp;
-  <a href="#try-it-in-two-minutes">Try it</a> &nbsp;&nbsp;
-  <a href="#connect-your-workspace">Connect your Workspace</a> &nbsp;&nbsp;
+  <a href="#google-chat-desktop-app-features">Features</a> &nbsp;&nbsp;
+  <a href="#run-confab-locally">Run it</a> &nbsp;&nbsp;
+  <a href="#connect-your-google-workspace-account">Connect Workspace</a> &nbsp;&nbsp;
   <a href="#roadmap">Roadmap</a> &nbsp;&nbsp;
+  <a href="#faq">FAQ</a> &nbsp;&nbsp;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
 </p>
 
 <br>
 
-![The Confab home screen, showing the sidebar and a space](docs/assets/home.png)
+![Confab Google Chat desktop app showing the spaces sidebar and a conversation](docs/assets/home.png)
 
 ## What is Confab?
 
-Confab is an unofficial client for [Google Chat](https://workspace.google.com/products/chat/). You sign in with your Google Workspace account and it talks to Google's own APIs, so everything stays in sync with Chat on the web and on your phone. Nobody else on your team has to install it.
+Confab is an unofficial, open source desktop client for [Google Chat](https://workspace.google.com/products/chat/) and Google Workspace, built with Tauri, Rust and React. You sign in with your Workspace account and it talks to Google's own APIs, so spaces, direct messages and threads stay in sync with Chat on the web and on your phone. Google Meet huddles, Google Calendar, Google Tasks and notes sit in the same window. Nobody else on your team has to install it.
 
-## What you get
+## Google Chat desktop app features
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### A conversation layout that stays out of your way
+### Spaces, direct messages and threads
 Spaces, DMs and group chats in one sidebar. Threads open in a side panel, and messages from the same person group into one clean block. Press `⌘K` to jump anywhere.
 
 </td>
 <td width="50%">
 
-![Thread panel beside a space](docs/assets/thread.png)
+![Confab thread panel open beside a Google Chat space](docs/assets/thread.png)
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-![A live huddle in a space](docs/assets/huddle.png)
+![Live Google Meet huddle in a Google Chat space in Confab](docs/assets/huddle.png)
 
 </td>
 <td width="50%" valign="top">
 
-### Huddles that ring
+### Huddles and Google Meet calls
 Start a huddle, or get a Join and Decline popup when someone else starts one. Calls run in the real Google Meet, in a small window that stays on top.
 
 </td>
@@ -65,25 +68,25 @@ Start a huddle, or get a Join and Decline popup when someone else starts one. Ca
 <tr>
 <td width="50%" valign="top">
 
-### Your calendar, next to your chats
+### Google Calendar next to your chats
 Month, week, day and agenda views from Google Calendar. Create events, answer invites and join a call from the countdown in the top bar.
 
 </td>
 <td width="50%">
 
-![Week view of the calendar in the light theme](docs/assets/calendar.png)
+![Google Calendar week view inside Confab, light theme](docs/assets/calendar.png)
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-![Notes view in the light theme](docs/assets/notes.png)
+![Confab notes saved to Google Drive, light theme](docs/assets/notes.png)
 
 </td>
 <td width="50%" valign="top">
 
-### Notes and tasks that follow you
+### Google Tasks and notes that follow you
 Google Tasks is built in, and any message can become a task. Notes are saved privately in your own Google Drive, so they appear wherever you sign in.
 
 </td>
@@ -109,9 +112,9 @@ Google Tasks is built in, and any message can become a task. Notes are saved pri
 > [!WARNING]
 > Confab is early software. Messaging, huddles you start, and sign-in have been used against real Google. Incoming huddle rings, status changes, saving notes, switching accounts, creating events and deleted-message handling have so far only been tested against the local stand-in.
 
-## Try it in two minutes
+## Run Confab locally
 
-You don't need a Google account for this. The project includes a local stand-in for Google, with a made-up team already in it.
+You can try Confab in about two minutes without a Google account. The project includes a local stand-in for Google, with a made-up team already in it.
 
 You need [Rust](https://rustup.rs), [Node](https://nodejs.org) and [pnpm](https://pnpm.io).
 
@@ -147,7 +150,7 @@ make desktop
 
 The desktop step needs the Tauri CLI, which you can install with `cargo install tauri-cli --version "^2"`.
 
-## Connect your Workspace
+## Connect your Google Workspace account
 
 Using your real account takes about ten minutes and needs:
 
@@ -216,6 +219,50 @@ Ask questions about your workspace and get answers from your own data, using the
 | `crates/prism-proto` | Types shared by all of the above |
 
 Confab was first called Prism, and internal names such as `prism-proto` and `co.prism.desktop` keep that name so existing sign-ins and notes carry over. The [architecture guide](docs/ARCHITECTURE.md) has the API tables, relay protocol and design notes.
+
+## FAQ
+
+### Is there a desktop app for Google Chat?
+
+Confab is an unofficial desktop client for Google Chat. It runs as a desktop app on macOS today and talks to Google's APIs directly, rather than wrapping the Chat website.
+
+### Does Confab work on Windows, Linux or the web?
+
+Not yet. macOS is the only platform tested so far, and web, Linux and Windows are on the [roadmap](#roadmap).
+
+### Does Confab work with a personal Gmail account?
+
+No. Setup needs a Google Workspace Business or Enterprise organisation and a Google Cloud project inside it.
+
+### Is Confab free and open source?
+
+Yes. Confab is free under the [MIT license](LICENSE). You run the relay yourself, and any Google Cloud costs for your project are yours.
+
+### Can I join Google Meet calls and huddles from Confab?
+
+Yes. Calls run in the real Google Meet, in a small window that stays on top. Confab can start a huddle in a named space and show a Join and Decline popup when someone else starts one.
+
+### Does everyone on my team need Confab?
+
+No. Messages reach teammates in Google Chat as usual. Typing indicators, other people's online status and read receipts only come from teammates who also use Confab.
+
+### Who can see my messages and tokens?
+
+Your tokens are stored on your machine, and there is no Confab-hosted server. Your access token and new message events pass through the relay you run, so treat that relay as part of your own infrastructure.
+
+### Is Confab made by Google?
+
+No. Confab is an independent project and is not affiliated with Google.
+
+## Documentation
+
+- [Features](docs/FEATURES.md)
+- [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Architecture and API reference](docs/ARCHITECTURE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Wiki](https://github.com/arunjayakumar01/confab/wiki)
 
 ## License
 
