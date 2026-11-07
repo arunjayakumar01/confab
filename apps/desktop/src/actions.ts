@@ -810,7 +810,7 @@ export function openSpaceTasks(space: string): void {
   openFeed("todos");
 }
 
-// ---- accounts: one profile per Google account, switched like Slack workspaces ----
+// ---- accounts: one profile per Google account, switched from the rail ----
 export async function loadAccounts(): Promise<void> {
   try { S.setState({ accounts: await bridge.accountsList() }); } catch (e) { console.warn("accounts", e); }
 }

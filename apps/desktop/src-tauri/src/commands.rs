@@ -457,6 +457,7 @@ fn chrome_profile_for(email: &str) -> Option<String> {
 }
 
 /// Pure half of the lookup: `info_cache` maps profile directories to `{user_name, ...}`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS looks up Chrome profiles so far
 fn chrome_profile_in(local_state: &str, email: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(local_state).ok()?;
     let cache = v.get("profile")?.get("info_cache")?.as_object()?;
@@ -472,6 +473,7 @@ fn chrome_profile_in(local_state: &str, email: &str) -> Option<String> {
 }
 
 /// A profile's `Preferences` list the Google accounts signed in to it under `account_info`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS looks up Chrome profiles so far
 fn chrome_prefs_list(prefs: &str, email: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(prefs)
         .ok()

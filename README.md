@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>Your Google Chat, in a fast desktop app with the layout you already know from Slack.</b><br>
+  <b>Your Google Chat, in a fast desktop app with a layout that stays out of your way.</b><br>
   Same account, same spaces, same messages. A much nicer place to read them.
 </p>
 
@@ -215,4 +215,4 @@ Confab was first called Prism, and internal names such as `prism-proto` and `co.
 
 ## Disclaimer
 
-Confab is an independent project. It is not affiliated with, endorsed by or supported by Google or Slack. Google Chat, Google Meet, Google Calendar, Google Drive and Google Tasks are trademarks of Google LLC. Slack is a trademark of Slack Technologies, LLC.
+Confab is an independent project. It is not affiliated with, endorsed by or supported by Google. Google Chat, Google Meet, Google Calendar, Google Drive and Google Tasks are trademarks of Google LLC.

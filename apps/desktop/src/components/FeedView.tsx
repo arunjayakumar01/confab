@@ -13,7 +13,7 @@ import { CalendarView } from "./CalendarView";
 import { NotesView } from "./NotesView";
 import { People, Todos } from "./Todos";
 
-/** Unreads, Saved, Todos and People in the main pane, like Slack's views: one header, then the list. */
+/** Unreads, Saved, Todos and People in the main pane: one header, then the list. */
 export function FeedView({ feed }: { feed: Feed }) {
   if (feed === "todos") return <Todos />;
   if (feed === "people") return <People />;

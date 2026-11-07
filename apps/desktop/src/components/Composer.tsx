@@ -288,7 +288,7 @@ export function Composer({ space, thread, placeholder, autoFocus }: Props) {
               attach(f);
               return;
             }
-            // A URL pasted over selected words links them, Slack-style.
+            // A URL pasted over selected words links them.
             const el = e.currentTarget;
             const sel = text.slice(el.selectionStart, el.selectionEnd);
             const pasted = e.clipboardData.getData("text").trim();

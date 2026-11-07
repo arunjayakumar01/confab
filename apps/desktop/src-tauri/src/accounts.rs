@@ -1,4 +1,4 @@
-//! Google accounts side by side, Slack-workspace style. Every profile directory
+//! Google accounts side by side. Every profile directory
 //! under the app data dir is one account with its own `AppState` (tokens, cache,
 //! relay socket). One account is active: its commands, `relay` and `shell` events
 //! and media proxy are what the web view sees. The others keep their relay sockets

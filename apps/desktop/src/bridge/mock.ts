@@ -124,7 +124,7 @@ const FIXTURES: Record<string, Fx[]> = {
     ["users/1004", 1700, "Type scale: 15px body, 13px meta, 18px header. _System stack_, Inter if installed."],
     ["users/1002", 1690, "~14px body~ 15px, agreed", { reactions: [["👍", 2]] }],
     ["users/1005", 1680, "Code blocks:\n```ts\nconst glass = `blur(20px) saturate(180%)`;\n```\nthat is the whole trick"],
-    ["users/1004", 400, "Unread badge colour: red like Slack, or accent?"],
+    ["users/1004", 400, "Unread badge colour: red, or accent?"],
     ["users/1001", 395, "Red. The accent is already doing the active state."],
     ["users/1004", 394, "ok ✅"],
     ["users/1002", 90, "Reduced transparency fallback is solid now, the blur just switches off. Spec attached.", { file: [MOTION_SPEC] }],
@@ -164,7 +164,7 @@ const FIXTURES: Record<string, Fx[]> = {
   ],
   "spaces/GRPcore": [
     ["users/1004", 2000, "core trio sync: are we keeping the 68px rail?"],
-    ["users/1002", 1995, "yes, Slack muscle memory"],
+    ["users/1002", 1995, "yes, muscle memory"],
     ["users/1001", 1990, "same"],
     ["users/1004", 1985, "ok. and the thread panel at 400?"],
     ["users/1002", 1980, "400 is fine on a 13 inch"],

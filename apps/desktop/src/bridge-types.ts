@@ -148,7 +148,7 @@ export type ShellEvent =
   | { type: "account"; id: string }
   | { type: "huddle_window_closed" };
 
-/** One Google account signed into this Confab, Slack-workspace style; the shell keeps a profile per account. */
+/** One Google account signed into this Confab; the shell keeps a profile per account. */
 export interface Account { id: string; email?: string; displayName?: string; photo?: string; signedIn: boolean; active: boolean; unread: number }
 
 export interface Bridge {

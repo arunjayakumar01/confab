@@ -360,7 +360,7 @@ function TitleMenu({ onClose, exiting }: { onClose: () => void; exiting?: boolea
   );
 }
 
-/** Slack's compose: pick people, one opens a DM, more open a group chat. */
+/** Compose: pick people, one opens a DM, more open a group chat. */
 function Compose({ onClose, exiting }: { onClose: () => void; exiting?: boolean }) {
   const [people, setPeople] = useState<User[]>([]);
   const [busy, setBusy] = useState(false);

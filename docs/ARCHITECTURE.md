@@ -2,7 +2,7 @@
 
 Formerly Prism. Internal identifiers keep the old name on purpose, because changing them would sign everyone out and orphan their notes: bundle id `co.prism.desktop`, keychain service `prism-*`, Drive file `prism-notes.json`, the `prism-media` scheme, `PRISM_*` variables, crate names.
 
-A Slack-style desktop client for Google Chat (Google Workspace Business or Enterprise).
+A desktop client for Google Chat (Google Workspace Business or Enterprise).
 Tauri 2 desktop shell with a glass UI, a Rust relay for the things Google's API does not
 carry (typing, presence, read receipts, draft sync), and a local **Google twin** that
 speaks the same API so the whole product runs on one laptop with no Google account.
@@ -283,7 +283,7 @@ notes are its own Keep-style notes stored as one JSON document in the user's Dri
 scope, the Drive API enabled in the project), which follows the account to any Confab. Quick composer, pinned and
 others, colours, inline editing, search; saves a second after the last edit, last write wins.
 
-Accounts side by side, Slack-workspace style: the shell keeps one profile per Google account (its own token store,
+Accounts side by side: the shell keeps one profile per Google account (its own token store,
 cache and relay session) and the rail shows a tile per account above the views, the active one framed, unread from
 the others as a badge, and a plus to add one. Switching (`account_switch`) reboots the workspace for that account;
 adding (`account_add`) opens the sign-in screen with a way back; removing (`account_remove`) drops the profile from

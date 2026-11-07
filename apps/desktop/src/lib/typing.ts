@@ -1,4 +1,4 @@
-/** Slack-style typing strip text. Names are display names of users currently typing. */
+/** Typing strip text. Names are display names of users currently typing. */
 export function typingText(names: string[]): string | null {
   const n = names.filter(Boolean);
   if (n.length === 0) return null;

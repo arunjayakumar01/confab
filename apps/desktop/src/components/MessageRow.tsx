@@ -38,7 +38,7 @@ export interface RowProps {
   pos?: Pos;
 }
 
-/** One to three emoji and nothing else: shown large, the way Slack does. */
+/** One to three emoji and nothing else: shown large. */
 export const isJumbo = (text?: string): boolean =>
   !!text && /^(?:\p{Extended_Pictographic}\uFE0F?(?:\u200d\p{Extended_Pictographic}\uFE0F?)*\s*){1,3}$/u.test(text.trim());
 

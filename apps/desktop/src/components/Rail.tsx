@@ -76,7 +76,7 @@ export function Rail() {
   );
 }
 
-/** Slack's workspace column: one tile per Google account, the active one framed, unread from the others, and a plus. */
+/** The account column: one tile per Google account, the active one framed, unread from the others, and a plus. */
 function Accounts() {
   const accounts = useStore((s) => s.accounts);
   const shell = useStore((s) => s.shell);

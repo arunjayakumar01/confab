@@ -76,7 +76,7 @@ Done on GCP. Two console pages remain (no API for them), then paste the client i
 2. Google Chat API configuration (needed for sending and for event subscriptions):
    https://console.cloud.google.com/apis/api/chat.googleapis.com/hangouts-chat?project=$PROJECT
    App name: Prism   Avatar URL: https://developers.google.com/workspace/chat/images/quickstart-app-avatar.png
-   Description: Slack-style desktop client   Enable interactive features: off   -> Save
+   Description: Desktop client   Enable interactive features: off   -> Save
 
 Then: make relay-real   (another terminal) make desktop-real
 MSG

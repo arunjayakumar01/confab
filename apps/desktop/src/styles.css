@@ -332,7 +332,7 @@ a { color: var(--link); }
 .rail__dot { position: absolute; top: 6px; right: 12px; width: 8px; height: 8px; border-radius: 50%; background: var(--badge); border: 2px solid var(--rail); box-sizing: content-box; animation: badge-in var(--t-slow) var(--ease-spring); }
 .rail__dot::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--badge); animation: ping 900ms var(--ease-out) 1 forwards; }
 .rail__spacer { flex: 1; }
-/* account tiles: Slack's workspace column, folded into the rail above the views */
+/* account tiles: one column of accounts, folded into the rail above the views */
 .rail__accounts { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: -4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); width: 44px; }
 .rail__acct { position: relative; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; opacity: 0.7; transition: opacity var(--t-fast), transform var(--t) var(--ease-spring), box-shadow var(--t-fast); }
 .rail__acct .avatar { width: 26px; height: 26px; font-size: 10px; border-radius: 7px; }
