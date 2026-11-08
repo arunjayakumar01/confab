@@ -217,9 +217,9 @@ Ask questions about your workspace and get answers from your own data, using the
 | `apps/desktop` | The Tauri 2 app, with a Rust core and a React 19 interface |
 | `services/relay` | Rust WebSocket relay for typing, online status, read receipts and draft sync |
 | `services/google-twin` | A local stand-in for Google's APIs, for development without an account |
-| `crates/prism-proto` | Types shared by all of the above |
+| `crates/confab-proto` | Types shared by all of the above |
 
-Confab was first called Prism, and internal names such as `prism-proto` and `co.prism.desktop` keep that name so existing sign-ins and notes carry over. The [architecture guide](docs/ARCHITECTURE.md) has the API tables, relay protocol and design notes.
+The [architecture guide](docs/ARCHITECTURE.md) has the API tables, relay protocol and design notes.
 
 ## FAQ
 

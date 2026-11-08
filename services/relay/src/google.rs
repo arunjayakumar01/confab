@@ -3,9 +3,9 @@
 //! subscription create / renew / list.
 
 use anyhow::{anyhow, bail, Context};
-use prism_proto::chat::{Message, UserInfo};
-use prism_proto::relay::event_types;
-use prism_proto::Endpoints;
+use confab_proto::chat::{Message, UserInfo};
+use confab_proto::relay::event_types;
+use confab_proto::Endpoints;
 use serde::Deserialize;
 
 #[derive(Clone)]

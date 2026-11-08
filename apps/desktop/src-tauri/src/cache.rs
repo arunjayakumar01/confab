@@ -3,7 +3,7 @@
 //! Every list result and every relay event is upserted here; `search` reads
 //! only from here.
 
-use prism_proto::chat::{Attachment, Membership, Message, Space};
+use confab_proto::chat::{Attachment, Membership, Message, Space};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::Mutex;
@@ -476,7 +476,7 @@ mod tests {
             c.ensure_owner("users/1").unwrap(),
             "an unowned cache is reset once"
         );
-        c.upsert_spaces(&[prism_proto::chat::Space {
+        c.upsert_spaces(&[confab_proto::chat::Space {
             name: "spaces/A".into(),
             ..Default::default()
         }])
@@ -486,7 +486,7 @@ mod tests {
         assert!(c.ensure_owner("users/2").unwrap(), "new owner wipes");
         assert!(c.space_names().unwrap().is_empty());
     }
-    use prism_proto::chat::{Thread, User};
+    use confab_proto::chat::{Thread, User};
 
     fn msg(name: &str, text: &str, t: &str) -> Message {
         Message {
@@ -567,7 +567,7 @@ mod tests {
 
     #[test]
     fn huddle_annotations_survive_the_cache() {
-        use prism_proto::chat::Annotation;
+        use confab_proto::chat::Annotation;
         let c = Cache::in_memory().unwrap();
         let mut huddle = msg("spaces/A/messages/H", "", "2026-11-07T10:00:00.000Z");
         huddle.text = None;

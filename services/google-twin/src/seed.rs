@@ -7,8 +7,8 @@ use crate::config::Config;
 use crate::state::{Blob, Store, CAL_PRIMARY, CAL_TEAM};
 use crate::util::{fmt_time, DetRng};
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, TimeZone, Timelike, Utc};
-use prism_proto::calendar::{Attendee, CalEvent, ConferenceData, EntryPoint, EventTime};
-use prism_proto::chat::{
+use confab_proto::calendar::{Attendee, CalEvent, ConferenceData, EntryPoint, EventTime};
+use confab_proto::chat::{
     Attachment, AttachmentDataRef, Emoji, Message, Reaction, Space, Thread, User,
 };
 

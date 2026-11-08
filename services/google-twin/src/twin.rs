@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use prism_proto::chat::TokenResponse;
+use confab_proto::chat::TokenResponse;
 use std::collections::HashMap;
 use std::sync::Arc;
 

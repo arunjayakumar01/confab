@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 
 use dashmap::DashMap;
-use prism_proto::relay::{CustomStatus, PresenceState, ServerMsg};
+use confab_proto::relay::{CustomStatus, PresenceState, ServerMsg};
 use tokio::sync::mpsc;
 
 pub struct Session {

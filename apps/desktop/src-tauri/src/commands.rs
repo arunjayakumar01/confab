@@ -10,12 +10,12 @@ use crate::shell::{
 };
 use crate::AppState;
 use base64::Engine;
-use prism_proto::availability::Availability;
-use prism_proto::calendar::{CalEvent, CalendarEntry, EventInput, EventsPage};
-use prism_proto::chat::{Attachment, Membership, Message, Space, Thread, User};
-use prism_proto::meet::{MeetSpace, MeetStatus};
-use prism_proto::relay::ClientMsg;
-use prism_proto::tasks::Task;
+use confab_proto::availability::Availability;
+use confab_proto::calendar::{CalEvent, CalendarEntry, EventInput, EventsPage};
+use confab_proto::chat::{Attachment, Membership, Message, Space, Thread, User};
+use confab_proto::meet::{MeetSpace, MeetStatus};
+use confab_proto::relay::ClientMsg;
+use confab_proto::tasks::Task;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::ipc::{InvokeBody, Request};

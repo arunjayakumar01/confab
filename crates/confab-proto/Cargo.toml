@@ -1,5 +1,5 @@
 [package]
-name = "prism-proto"
+name = "confab-proto"
 version.workspace = true
 edition.workspace = true
 

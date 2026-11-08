@@ -4,11 +4,11 @@
 
 use crate::auth::Auth;
 use crate::shell::space_of;
-use prism_proto::availability::Availability;
-use prism_proto::calendar::{Attendee, CalEvent, CalendarEntry, EventInput, EventsPage};
-use prism_proto::chat::*;
-use prism_proto::meet::{MeetParticipant, MeetSpace, MeetStatus};
-use prism_proto::tasks::{ListTasksResponse, Task};
+use confab_proto::availability::Availability;
+use confab_proto::calendar::{Attendee, CalEvent, CalendarEntry, EventInput, EventsPage};
+use confab_proto::chat::*;
+use confab_proto::meet::{MeetParticipant, MeetSpace, MeetStatus};
+use confab_proto::tasks::{ListTasksResponse, Task};
 use reqwest::{Client, RequestBuilder};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -138,7 +138,7 @@ impl Google {
             meet_base: meet_api.trim_end_matches('/').to_string(),
             calendar_base: calendar_api.trim_end_matches('/').to_string(),
             drive_base: drive_api.trim_end_matches('/').to_string(),
-            drive_upload_base: prism_proto::drive_upload_api(drive_api),
+            drive_upload_base: confab_proto::drive_upload_api(drive_api),
             throttle: Mutex::new(HashMap::new()),
         }
     }

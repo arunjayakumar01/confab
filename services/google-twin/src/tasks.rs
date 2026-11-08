@@ -12,7 +12,7 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
-use prism_proto::tasks::Task;
+use confab_proto::tasks::Task;
 use serde::Deserialize;
 use std::sync::Arc;
 

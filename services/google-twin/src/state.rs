@@ -4,13 +4,13 @@ use crate::config::Config;
 use crate::events::Pusher;
 use crate::util::{fmt_time, now_str, random_id, random_token, user_id, utf16_len};
 use chrono::{DateTime, Duration, Local, SecondsFormat, Utc};
-use prism_proto::availability::{Availability, CustomStatusWire};
-use prism_proto::calendar::CalEvent;
-use prism_proto::chat::{
+use confab_proto::availability::{Availability, CustomStatusWire};
+use confab_proto::calendar::CalEvent;
+use confab_proto::chat::{
     Annotation, EmojiReactionSummary, Membership, MembershipCount, Message, Reaction, Space,
     SpaceDetails, TokenResponse, User, UserMentionMetadata,
 };
-use prism_proto::tasks::Task;
+use confab_proto::tasks::Task;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
@@ -353,7 +353,7 @@ impl Store {
     fn refresh_membership_count(&mut self, space: &str) {
         let n = self.members_of(space).len() as i64;
         if let Some(s) = self.spaces.get_mut(space) {
-            s.membership_count = Some(prism_proto::chat::MembershipCount {
+            s.membership_count = Some(confab_proto::chat::MembershipCount {
                 joined_direct_human_user_count: Some(n),
                 joined_group_count: Some(0),
             });
@@ -432,7 +432,7 @@ impl Store {
                 .into_iter()
                 .map(|u| EmojiReactionSummary {
                     reaction_count: counts.get(&u).copied(),
-                    emoji: Some(prism_proto::chat::Emoji {
+                    emoji: Some(confab_proto::chat::Emoji {
                         unicode: Some(u),
                         custom_emoji: None,
                     }),
@@ -506,7 +506,7 @@ impl Store {
             refresh_token: Some(refresh),
             expires_in,
             id_token: None,
-            scope: scope.or_else(|| Some(prism_proto::SCOPES.join(" "))),
+            scope: scope.or_else(|| Some(confab_proto::SCOPES.join(" "))),
             token_type: "Bearer".into(),
         }
     }

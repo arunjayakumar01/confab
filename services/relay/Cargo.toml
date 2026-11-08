@@ -11,7 +11,7 @@ name = "relay"
 path = "src/main.rs"
 
 [dependencies]
-prism-proto = { workspace = true }
+confab-proto = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

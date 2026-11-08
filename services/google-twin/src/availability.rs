@@ -14,7 +14,7 @@ use axum::{
     Json, Router,
 };
 use chrono::{DateTime, Duration, Utc};
-use prism_proto::availability::{Availability, CustomStatusWire, EmojiWire};
+use confab_proto::availability::{Availability, CustomStatusWire, EmojiWire};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;

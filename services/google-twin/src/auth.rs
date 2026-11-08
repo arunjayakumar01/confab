@@ -12,7 +12,7 @@ use axum::{
 };
 use base64::Engine;
 use chrono::{Duration, Utc};
-use prism_proto::chat::{TokenResponse, UserInfo};
+use confab_proto::chat::{TokenResponse, UserInfo};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -267,7 +267,7 @@ async fn token(
                 refresh_token: None,
                 expires_in,
                 id_token: None,
-                scope: Some(prism_proto::SCOPES.join(" ")),
+                scope: Some(confab_proto::SCOPES.join(" ")),
                 token_type: "Bearer".into(),
             }))
         }

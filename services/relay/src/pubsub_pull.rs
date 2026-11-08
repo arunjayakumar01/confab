@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-use prism_proto::events::{PubSubMessage, PubSubPush};
+use confab_proto::events::{PubSubMessage, PubSubPush};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 

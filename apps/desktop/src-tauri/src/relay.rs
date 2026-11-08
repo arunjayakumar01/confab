@@ -8,7 +8,7 @@ use crate::cache::Cache;
 use crate::shell::{RelayState, ShellEvent};
 use crate::AppState;
 use futures::{SinkExt, StreamExt};
-use prism_proto::relay::{event_types, ChatEvent, ClientMsg, ServerMsg};
+use confab_proto::relay::{event_types, ChatEvent, ClientMsg, ServerMsg};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -375,10 +375,10 @@ fn handle_frame(app: &AppHandle, state: &Arc<AppState>, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prism_proto::chat::{Message, Reaction};
+    use confab_proto::chat::{Message, Reaction};
 
     #[test]
-    fn frames_round_trip_with_prism_proto() {
+    fn frames_round_trip_with_confab_proto() {
         let hello = ClientMsg::Hello {
             token: "t".into(),
             device_id: "d".into(),

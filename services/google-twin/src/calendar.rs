@@ -15,7 +15,7 @@ use axum::{
     Json, Router,
 };
 use chrono::{DateTime, Local, NaiveDate, TimeZone, Utc};
-use prism_proto::calendar::{Attendee, CalEvent, ConferenceData, EntryPoint, EventTime};
+use confab_proto::calendar::{Attendee, CalEvent, ConferenceData, EntryPoint, EventTime};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;

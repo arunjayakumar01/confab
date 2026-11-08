@@ -9,9 +9,9 @@ use axum::{
 };
 use google_twin::{app, AppState, Config};
 use http_body_util::BodyExt;
-use prism_proto::chat::{Message, TokenResponse, UserInfo};
-use prism_proto::events::PubSubPush;
-use prism_proto::relay::event_types;
+use confab_proto::chat::{Message, TokenResponse, UserInfo};
+use confab_proto::events::PubSubPush;
+use confab_proto::relay::event_types;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;

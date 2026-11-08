@@ -14,8 +14,8 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use jsonwebtoken::jwk::{Jwk, JwkSet};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
-use prism_proto::events::PubSubPush;
-use prism_proto::relay::{event_types, ChatEvent, ServerMsg};
+use confab_proto::events::PubSubPush;
+use confab_proto::relay::{event_types, ChatEvent, ServerMsg};
 use serde::Deserialize;
 
 use crate::names::{valid_message, valid_space};
@@ -268,7 +268,7 @@ async fn jwk_for(state: &AppState, kid: &str) -> anyhow::Result<Jwk> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prism_proto::chat::{Membership, Message, Reaction};
+    use confab_proto::chat::{Membership, Message, Reaction};
 
     #[test]
     fn dedupe_keys_distinguish_type_and_version() {

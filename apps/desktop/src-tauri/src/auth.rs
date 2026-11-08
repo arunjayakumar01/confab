@@ -6,8 +6,8 @@
 use crate::profile::{AccountInfo, Profile};
 use crate::shell::{user_from_info, AuthStatus};
 use base64::Engine;
-use prism_proto::chat::{TokenResponse, UserInfo};
-use prism_proto::{Endpoints, SCOPES};
+use confab_proto::chat::{TokenResponse, UserInfo};
+use confab_proto::{Endpoints, SCOPES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -44,7 +44,7 @@ pub struct StoredAuth {
 pub fn has_required_scopes(granted: Option<&str>) -> bool {
     let Some(g) = granted else { return false };
     let have: std::collections::HashSet<&str> = g.split_whitespace().collect();
-    prism_proto::SCOPES
+    confab_proto::SCOPES
         .iter()
         .filter(|s| s.starts_with("https://"))
         .all(|s| have.contains(s))
@@ -772,7 +772,7 @@ mod tests {
 
     #[test]
     fn scope_gate_requires_every_https_scope() {
-        let all = prism_proto::SCOPES.join(" ");
+        let all = confab_proto::SCOPES.join(" ");
         assert!(has_required_scopes(Some(&all)));
         assert!(!has_required_scopes(None));
         let old = all.replace("https://www.googleapis.com/auth/directory.readonly", "");

@@ -1,5 +1,5 @@
 //! Google Chat API v1 subset under `/v1/...` and `/upload/v1/...`.
-//! Every handler: Bearer required, Google-shaped errors, prism_proto bodies.
+//! Every handler: Bearer required, Google-shaped errors, confab_proto bodies.
 
 use crate::auth::Caller;
 use crate::error::{ApiError, ApiResult};
@@ -14,13 +14,13 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use prism_proto::chat::{
+use confab_proto::chat::{
     Annotation, Attachment, ListMembershipsResponse, ListMessagesResponse, ListReactionsResponse,
     ListSpacesResponse, Membership, Message, QuotedMessageMetadata, Reaction,
     SearchMessagesResponse, Space, SpaceReadState, Thread, UploadAttachmentResponse, User,
 };
-use prism_proto::events::EventData;
-use prism_proto::relay::event_types;
+use confab_proto::events::EventData;
+use confab_proto::relay::event_types;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -83,8 +83,8 @@ pub fn routes() -> AppRouter {
 
 // ---- request bodies -----------------------------------------------------------
 // The client posts partial resources (`{text, thread?}`) without a `name`, while
-// `prism_proto::chat::Message.name` is required, so inputs use these local shapes.
-// Responses are always the prism_proto resources.
+// `confab_proto::chat::Message.name` is required, so inputs use these local shapes.
+// Responses are always the confab_proto resources.
 
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -1069,7 +1069,7 @@ async fn create_reaction(
         let reaction = Reaction {
             name: Some(format!("{}/reactions/{}", msg.name, random_id())),
             user: st.users.get(&caller.user).cloned(),
-            emoji: prism_proto::chat::Emoji {
+            emoji: confab_proto::chat::Emoji {
                 unicode: Some(unicode),
                 custom_emoji: None,
             },
@@ -1332,7 +1332,7 @@ async fn upload_attachment(
         },
     );
     Ok(Json(UploadAttachmentResponse {
-        attachment_data_ref: Some(prism_proto::chat::AttachmentDataRef {
+        attachment_data_ref: Some(confab_proto::chat::AttachmentDataRef {
             resource_name: Some(resource),
             attachment_upload_token: Some(crate::util::random_token()),
         }),

@@ -1,14 +1,12 @@
 # Confab
 
-Formerly Prism. Internal identifiers keep the old name on purpose, because changing them would sign everyone out and orphan their notes: bundle id `co.prism.desktop`, keychain service `prism-*`, Drive file `prism-notes.json`, the `prism-media` scheme, `PRISM_*` variables, crate names.
-
 A desktop client for Google Chat (Google Workspace Business or Enterprise).
 Tauri 2 desktop shell with a glass UI, a Rust relay for the things Google's API does not
 carry (typing, presence, read receipts, draft sync), and a local **Google twin** that
 speaks the same API so the whole product runs on one laptop with no Google account.
 
 ```
-crates/prism-proto        shared types: Chat API v1 subset, relay protocol, Pub/Sub envelope
+crates/confab-proto        shared types: Chat API v1 subset, relay protocol, Pub/Sub envelope
 services/google-twin      local stand-in for Google: OAuth + Chat API subset + event push  (:8081)
 services/relay            WebSocket relay + Pub/Sub push endpoint + Workspace Events manager (:8080)
 apps/desktop              Tauri 2 app: src-tauri = Rust core, src = React web view (:1420 in dev)
@@ -17,7 +15,7 @@ apps/desktop              Tauri 2 app: src-tauri = Rust core, src = React web vi
 ## Contract (read this before touching any package)
 
 ### Endpoints and modes
-`prism_proto::Endpoints::from_env()` is the single source of configuration, in every process:
+`confab_proto::Endpoints::from_env()` is the single source of configuration, in every process:
 
 | env | twin default | real Google |
 | --- | --- | --- |
@@ -41,7 +39,7 @@ The relay additionally reads `PRISM_PUSH_SECRET` (twin mode shared secret, defau
 Real Google mode is detected by `PRISM_CHAT_API` containing `googleapis.com`.
 
 ### Google Chat API v1 subset (what the client calls, what the twin serves)
-All paths under `PRISM_CHAT_API`. Bearer token on every call. JSON camelCase as in `prism_proto::chat`.
+All paths under `PRISM_CHAT_API`. Bearer token on every call. JSON camelCase as in `confab_proto::chat`.
 
 | call | method and path | notes |
 | --- | --- | --- |
@@ -73,10 +71,10 @@ All paths under `PRISM_CHAT_API`. Bearer token on every call. JSON camelCase as 
 | get meet | `GET {meet_api}/v2/spaces/{code}` (`abc-defg-hij` or `spaces/{id}`) | the space, plus `activeConference: {conferenceRecord}` while a call is running (the twin: fifteen minutes after creation); 404 for an unknown code; scope `meetings.space.readonly` |
 | meet participants | `GET {meet_api}/v2/{conferenceRecord}/participants?pageSize=100` | `{participants: [{signedinUser: {user, displayName}} \| {anonymousUser: {displayName}} \| {phoneUser: {displayName}}, earliestStartTime, latestEndTime?]}`; no `latestEndTime` means still in the call. The twin lists the creator, Priya (joins five seconds in) and Rahul (already left) |
 | huddle message | `POST /v1/spaces/{s}/messages?messageId=client-{uuid}` body `{text: "", annotations: [{type: "RICH_LINK", startIndex: 0, richLinkMetadata: {uri, richLinkType: "MEET_SPACE", meetSpaceLinkData: {meetingCode, type: "HUDDLE", huddleStatus: "STARTED"}}}]}` | how Google itself posts a huddle (and later updates it with `huddleStatus: ENDED` or `MISSED`); the twin keeps the annotation. If Google refuses the annotation (400), the shell posts `Started a huddle` plus the link instead |
-| availability | `GET /v1/users/me/availability` | `Availability` `{name, state: ACTIVE \| IDLE \| AWAY \| DO_NOT_DISTURB \| STATE_UNSPECIFIED, customStatus?: {text, emoji: {unicode}, expireTime?}, doNotDisturbMetadata?: {expirationTime}}` (`prism_proto::availability`); scope `chat.users.availability`. The twin keeps one record per caller, `ACTIVE` by default, and accepts `me` or the caller's own id in the path |
+| availability | `GET /v1/users/me/availability` | `Availability` `{name, state: ACTIVE \| IDLE \| AWAY \| DO_NOT_DISTURB \| STATE_UNSPECIFIED, customStatus?: {text, emoji: {unicode}, expireTime?}, doNotDisturbMetadata?: {expirationTime}}` (`confab_proto::availability`); scope `chat.users.availability`. The twin keeps one record per caller, `ACTIVE` by default, and accepts `me` or the caller's own id in the path |
 | mark availability | `POST /v1/users/me/availability:markAsActive` body `{ttl?: "1800s"}` (Google defaults to thirty minutes), `:markAsAway` empty body, `:markAsDoNotDisturb` body `{ttl: "3600s"}` (required, at most a year) | each answers the `Availability`; the twin sets `doNotDisturbMetadata.expirationTime` to now plus `ttl`, reports `IDLE` once an active window lapses and `ACTIVE` once do-not-disturb does |
 | custom status | `PATCH /v1/users/me/availability?updateMask=customStatus` body `{customStatus: {text (64 chars max), emoji: {unicode}, ttl?: "3600s"}}`; `{customStatus: {}}` with the same mask clears it (the shell falls back to an empty body with the mask if Google answers 400) | the `Availability`; the twin answers 400 for text over 64 characters, a missing emoji, or a missing mask, and sets `expireTime` when a `ttl` was given |
-| calendar list | `GET {calendar_api}/users/me/calendarList?minAccessRole=reader&maxResults=250&pageToken=` | Google Calendar v3; `{items: [{id, summary, primary?, backgroundColor, accessRole}]}` (`prism_proto::calendar::CalendarEntry`); scope `calendar.readonly`. The twin lists `primary` (the caller's name, owner) and `team@example.test` (Team, reader) |
+| calendar list | `GET {calendar_api}/users/me/calendarList?minAccessRole=reader&maxResults=250&pageToken=` | Google Calendar v3; `{items: [{id, summary, primary?, backgroundColor, accessRole}]}` (`confab_proto::calendar::CalendarEntry`); scope `calendar.readonly`. The twin lists `primary` (the caller's name, owner) and `team@example.test` (Team, reader) |
 | list events | `GET {calendar_api}/calendars/{id}/events?singleEvents=true&maxResults=250&showDeleted=true` plus `timeMin=&timeMax=&orderBy=startTime` (a window: events whose end is after `timeMin` and start before `timeMax`) or `syncToken=` (only what changed since, cancelled ones as `{id, status: "cancelled"}`, no bounds or ordering) | `EventsPage` `{items: CalEvent[], nextSyncToken, nextPageToken?}`; the shell follows pages and stamps `calendarId` on every item; a 410 means the token expired and the shell's error starts with `sync_expired`. The twin's sync token is a change counter plus one, kept for the last 100 changes; an unknown, stale or future token is a 410 with `status: "fullSyncRequired"`; scope `calendar.events` |
 | create event | `POST {calendar_api}/calendars/{id}/events?sendUpdates=all[&conferenceDataVersion=1]` body `{summary, description?, location?, start: {dateTime \| date}, end, attendees: [{email}], recurrence?: ["RRULE:..."], conferenceData?: {createRequest: {requestId, conferenceSolutionKey: {type: "hangoutsMeet"}}}}` | the `CalEvent` (`{id, status, summary, description?, location?, htmlLink, hangoutLink?, start, end, attendees: [{email, displayName?, responseStatus, self?, organizer?, optional?}], organizer, conferenceData?: {entryPoints: [{entryPointType, uri, label?}]}, created, updated, recurringEventId?, recurrence?, transparency?, colorId?}`); the twin names them `ev-{n}`, adds the caller as organizer (`accepted`), the others `needsAction`, and a `createRequest` with `conferenceDataVersion=1` mints a `hangoutLink` plus a video entry point. The team calendar answers 403 for writes |
 | update event | `PATCH {calendar_api}/calendars/{id}/events/{eventId}?sendUpdates=all[&conferenceDataVersion=1]` body: any of the create fields | the merged `CalEvent`; `attendees` replaces the list; a `createRequest` adds a Meet to an event without one and leaves an existing link alone |
@@ -86,13 +84,13 @@ All paths under `PRISM_CHAT_API`. Bearer token on every call. JSON camelCase as 
 | save notes | `PATCH {upload}/files/{id}?uploadType=media` (content-type `application/json`, the text) when the file exists, else `POST {upload}/files?uploadType=multipart` with a `multipart/related` body: `{"name": "prism-notes.json", "parents": ["appDataFolder"]}` as `application/json`, then the text as `application/json`; `{upload}` is `{drive_api}` with `/upload/drive/v3` in place of `/drive/v3` | `{id, name, mimeType, modifiedTime}` |
 
 OAuth: authorization code + PKCE (S256), loopback redirect `http://127.0.0.1:{port}/callback`,
-scopes = `prism_proto::SCOPES`, `access_type=offline&prompt=consent` to get a refresh token.
+scopes = `confab_proto::SCOPES`, `access_type=offline&prompt=consent` to get a refresh token.
 Token endpoint takes form fields `grant_type`, `code`, `code_verifier`, `redirect_uri`, `client_id`
 (and `refresh_token` for `grant_type=refresh_token`).
 Errors are Google-shaped: `{"error": {"code", "message", "status"}}` with 401/403/404/409/429.
 
 ### Workspace Events
-Events reach the relay at `POST /events/push` in the Cloud Pub/Sub push shape (`prism_proto::events::PubSubPush`):
+Events reach the relay at `POST /events/push` in the Cloud Pub/Sub push shape (`confab_proto::events::PubSubPush`):
 attributes `ce-type`, `ce-subject` (`//chat.googleapis.com/spaces/{s}`), `ce-time`; `data` = base64 JSON `EventData`.
 Twin mode: header `X-Prism-Push-Secret` or a `?secret=` query parameter on the push URL (a Pub/Sub push subscription cannot set headers). Real mode: `Authorization: Bearer <Google OIDC JWT>` verified against
 `https://www.googleapis.com/oauth2/v3/certs`, audience `PRISM_PUSH_AUDIENCE`, email `PRISM_PUSH_SERVICE_ACCOUNT`.
@@ -105,7 +103,7 @@ in twin mode the subscription manager does nothing. The twin posts straight to t
 emulator instead, and a push subscription delivers to the relay, which is the shape real GCP has.
 
 ### Relay WebSocket protocol
-`prism_proto::relay::{ClientMsg, ServerMsg}`, JSON text frames tagged by `type` (snake_case).
+`confab_proto::relay::{ClientMsg, ServerMsg}`, JSON text frames tagged by `type` (snake_case).
 First frame must be `hello`; the relay calls userinfo with the token and answers `welcome` or `error` + close.
 `subscribe` replaces the session's space set; each space is authorised with "get my membership" (cached 10 min).
 `typing` fans out to every other session subscribed to that space with `ttl_ms = 5000`.
@@ -152,17 +150,17 @@ Tauri commands (JS sends camelCase keys, Rust params are snake_case; Tauri conve
 | `unfurl` | `url` | link preview after consent: Open Graph title, description, image and site; refuses local hosts, 512 KB and 6 s caps |
 | `set_zoom` | `scale` (`1.0` is 100%, clamped 0.5 to 2) | shell only: page zoom of the webview, driven by ⌘= ⌘- ⌘0 |
 | `save_attachment` | `url` (a `prism-media` scheme URL or the upstream itself), `name` (file name) | shell only: fetches the attachment with the signed-in token (same origin allow-list as the media proxy), writes it to the Downloads folder (app data dir as fallback) as `name`, `name (2).ext`, ... and reveals it in the file manager; returns the absolute path |
-| `list_tasks` | | `Task[]` from the signed-in user's default Google Tasks list, completed ones included; `Task` is `{id, title, notes?, status: "needsAction" \| "completed", due?, updated?, webViewLink?}` (`prism_proto::tasks::Task`) |
+| `list_tasks` | | `Task[]` from the signed-in user's default Google Tasks list, completed ones included; `Task` is `{id, title, notes?, status: "needsAction" \| "completed", due?, updated?, webViewLink?}` (`confab_proto::tasks::Task`) |
 | `add_task` | `title`, `notes?`, `due?` (RFC 3339; Google keeps the date) | the created `Task`; a blank `title` is an error |
 | `set_task_done` | `id`, `done: boolean` | the updated `Task` (`completed` on `true`, back to `needsAction` on `false`) |
 | `delete_task` | `id` | |
-| `create_meet` | | `MeetSpace` `{name, meetingUri, meetingCode}` (`prism_proto::meet::MeetSpace`): a fresh Google Meet space with `accessType: TRUSTED` |
+| `create_meet` | | `MeetSpace` `{name, meetingUri, meetingCode}` (`confab_proto::meet::MeetSpace`): a fresh Google Meet space with `accessType: TRUSTED` |
 | `meet_status` | `code` (`abc-defg-hij` or `spaces/{id}`) | `MeetStatus` `{active, conferenceRecord?, participants: [{user?, displayName?, since?}]}`: whether the space has a call running and who is still in it; an unknown code is an error |
 | `post_huddle` | `space`, `meetingUri`, `meetingCode` | the huddle `Message` as Google stored it: no text and one `RICH_LINK` annotation (`richLinkMetadata.meetSpaceLinkData` with `type: HUDDLE`, `huddleStatus: STARTED`); when Google refuses the annotation, a plain `Started a huddle` message with the link. Cached like any send |
-| `availability_get` | | `Availability` `{name, state, customStatus?: {text, emoji: {unicode}, expireTime?}, doNotDisturbMetadata?: {expirationTime}}` (`prism_proto::availability::Availability`) for the signed-in user |
+| `availability_get` | | `Availability` `{name, state, customStatus?: {text, emoji: {unicode}, expireTime?}, doNotDisturbMetadata?: {expirationTime}}` (`confab_proto::availability::Availability`) for the signed-in user |
 | `availability_mark` | `state` (`active` \| `away` \| `dnd`), `ttlSeconds?` | the `Availability`: `active` sends `markAsActive` (with `ttl` when given, Google's default is thirty minutes), `away` sends `markAsAway`, `dnd` sends `markAsDoNotDisturb` with `ttl` (an hour when omitted) |
 | `availability_status` | `text?`, `emoji?`, `ttlSeconds?` | the `Availability`: sets the custom status (`text` up to 64 characters, `emoji` defaults to a speech balloon, `ttlSeconds` optional); a blank or missing `text` clears it |
-| `calendar_list` | | `CalendarEntry[]` `{id, summary, primary, backgroundColor?, accessRole?}` (`prism_proto::calendar::CalendarEntry`): every calendar the signed-in user can read |
+| `calendar_list` | | `CalendarEntry[]` `{id, summary, primary, backgroundColor?, accessRole?}` (`confab_proto::calendar::CalendarEntry`): every calendar the signed-in user can read |
 | `calendar_events` | `calendarId`, `timeMin?`, `timeMax?`, `syncToken?` (RFC 3339 bounds) | `EventsPage` `{items: CalEvent[], nextSyncToken?}`: single instances of the window ordered by start, or with `syncToken` only what changed since (cancelled ones with `status: "cancelled"`); every item carries `calendarId`. `CalEvent` is `{id, status?, summary?, description?, location?, htmlLink?, hangoutLink?, start: {dateTime?, date?, timeZone?}, end, attendees: [{email, displayName?, responseStatus?, self, organizer, optional}], organizer?, conferenceData?: {entryPoints: [{entryPointType?, uri?, label?}]}, created?, updated?, recurringEventId?, recurrence?: string[], transparency?, colorId?, calendarId?}`. An expired token is an error whose message starts with `sync_expired`: refetch the window without a token |
 | `calendar_create_event` | `calendarId`, `event: EventInput` | the created `CalEvent`. `EventInput` is `{summary, description?, location?, start: {dateTime?, date?, timeZone?}, end, attendees: string[] (emails), recurrence?: string[] (RRULE lines), addMeet: boolean}`; all-day events use `date` on both ends; `addMeet` attaches a Google Meet; invitations go out (`sendUpdates=all`) |
 | `calendar_update_event` | `calendarId`, `eventId`, `event: EventInput` | the updated `CalEvent`: the input's fields replace the event's (attendees as a whole list, `recurrence` when given); `addMeet` on an event without a conference attaches one |
@@ -183,7 +181,7 @@ Shell → web view events: `relay` (payload `ServerMsg`) and `shell` (payload `S
 raises one system notification titled `<displayName or email>: new message`, at most one per account per minute.
 
 ### Accounts
-Every directory under the app data dir (`~/Library/Application Support/co.prism.desktop` on macOS) that holds
+Every directory under the app data dir (`~/Library/Application Support/<bundle id>` on macOS) that holds
 an `auth.json` or an `account.json` is one Google account: its own token store, `cache.db`, `device_id` and
 relay socket. `PRISM_PROFILE=<name>` picks the one active at launch (`default` when unset); the others load
 right after and keep their sockets open. `account.json` (`{email, displayName, photo}`) is written on sign-in
@@ -322,7 +320,7 @@ tags with a title and description fallback. Google's own apps are never previewe
 
 Todos (`⌘⇧T`) is Google Tasks' default list: add, tick, reopen, delete, due dates with overdue in red, and Add to
 Tasks on any message's context menu (title from the first line, the message link in the notes). It needs the
-`tasks` scope (`SCOPES` in prism-proto, so an older sign-in is asked to consent again) and the Tasks API enabled in
+`tasks` scope (`SCOPES` in confab-proto, so an older sign-in is asked to consent again) and the Tasks API enabled in
 the GCP project. People lists everyone from the spaces you share (members load when the view opens) with presence,
 email and a Message button; typing searches the Workspace directory as well.
 

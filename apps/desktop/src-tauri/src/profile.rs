@@ -2,8 +2,8 @@
 //! token store, cache and device id. `PRISM_PROFILE` (default `default`) names the
 //! one active at launch; `accounts` keeps the others side by side.
 
-use prism_proto::chat::UserInfo;
-use prism_proto::Endpoints;
+use confab_proto::chat::UserInfo;
+use confab_proto::Endpoints;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

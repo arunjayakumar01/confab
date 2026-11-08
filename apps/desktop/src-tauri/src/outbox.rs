@@ -108,9 +108,9 @@ async fn deliver(app: AppHandle, state: Arc<AppState>, client_id: String) {
 }
 
 fn proxied(
-    mut message: prism_proto::chat::Message,
+    mut message: confab_proto::chat::Message,
     state: &AppState,
-) -> prism_proto::chat::Message {
+) -> confab_proto::chat::Message {
     crate::shell::proxy_media(std::slice::from_mut(&mut message), &state.profile.endpoints);
     message
 }

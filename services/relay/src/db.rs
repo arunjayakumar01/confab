@@ -4,7 +4,7 @@
 use std::sync::Mutex;
 
 use anyhow::Context;
-use prism_proto::relay::CustomStatus;
+use confab_proto::relay::CustomStatus;
 use rusqlite::{params, Connection, OptionalExtension};
 
 // note: one connection behind a std mutex, held across no await; a pool when writes contend

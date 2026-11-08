@@ -11,8 +11,8 @@ use axum::extract::State;
 use axum::response::Response;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
-use prism_proto::chat;
-use prism_proto::relay::{ClientMsg, CustomStatus, PresenceState, ServerMsg, TYPING_TTL_MS};
+use confab_proto::chat;
+use confab_proto::relay::{ClientMsg, CustomStatus, PresenceState, ServerMsg, TYPING_TTL_MS};
 use tokio::sync::mpsc;
 
 use crate::hub::{PresenceRecord, Session};

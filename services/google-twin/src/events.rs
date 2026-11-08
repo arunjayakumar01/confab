@@ -10,7 +10,7 @@
 
 use crate::config::Config;
 use crate::util::now_str;
-use prism_proto::events::{EventData, PubSubMessage, PubSubPush};
+use confab_proto::events::{EventData, PubSubMessage, PubSubPush};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;

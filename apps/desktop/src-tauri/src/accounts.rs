@@ -9,7 +9,7 @@ use crate::profile::{AccountInfo, Profile};
 use crate::shell::ShellEvent;
 use crate::{outbox, AppState};
 use dashmap::DashMap;
-use prism_proto::relay::{event_types, ServerMsg};
+use confab_proto::relay::{event_types, ServerMsg};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
@@ -417,8 +417,8 @@ fn notify_new_message(app: &AppHandle, account: &AppState, msg: &ServerMsg) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prism_proto::chat::{Message, User};
-    use prism_proto::relay::ChatEvent;
+    use confab_proto::chat::{Message, User};
+    use confab_proto::relay::ChatEvent;
 
     #[test]
     fn account_ids_take_the_first_free_number() {

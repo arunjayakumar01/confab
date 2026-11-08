@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use prism_proto::chat::{ErrorBody, ErrorDetail};
+use confab_proto::chat::{ErrorBody, ErrorDetail};
 
 #[derive(Debug, Clone)]
 pub struct ApiError {

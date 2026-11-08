@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use prism_proto::Endpoints;
+use confab_proto::Endpoints;
 
 #[derive(Clone, Debug)]
 pub struct Config {

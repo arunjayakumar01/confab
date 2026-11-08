@@ -1,5 +1,5 @@
 // Contract between the web UI and whichever shell hosts it.
-// Mirrors crates/prism-proto (Google Chat API v1 subset + relay protocol).
+// Mirrors crates/confab-proto (Google Chat API v1 subset + relay protocol).
 // Desktop: implemented over Tauri invoke/listen. Browser: fetch + WebSocket.
 
 export interface User {

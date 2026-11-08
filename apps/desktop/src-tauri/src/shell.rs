@@ -1,10 +1,10 @@
-//! Types that cross the shell ↔ web view bridge and are not in `prism_proto`:
+//! Types that cross the shell ↔ web view bridge and are not in `confab_proto`:
 //! `AuthStatus`, `Page`, `ShellEvent`. JSON shapes mirror
 //! `apps/desktop/src/bridge-types.ts` (camelCase, tagged by `type`).
 
 use base64::Engine;
-use prism_proto::chat::{Attachment, Message, User, UserInfo};
-use prism_proto::Endpoints;
+use confab_proto::chat::{Attachment, Message, User, UserInfo};
+use confab_proto::Endpoints;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -232,7 +232,7 @@ pub fn proxy_attachment(a: &mut Attachment, endpoints: &Endpoints) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prism_proto::chat::AttachmentDataRef;
+    use confab_proto::chat::AttachmentDataRef;
 
     #[test]
     fn shell_event_json_matches_bridge_types() {
