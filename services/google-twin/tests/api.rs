@@ -2715,7 +2715,8 @@ async fn drive_app_data_notes_round_trip() {
         .unwrap();
     let (status, created, _) = send(&app, request).await;
     assert_eq!(status, StatusCode::OK, "{created}");
-    assert_eq!(created["id"], "file-1");
+    let id = created["id"].as_str().unwrap().to_string();
+    assert!(id.starts_with("file-"));
     assert_eq!(created["name"], "prism-notes.json");
     assert_eq!(created["mimeType"], "application/json");
     assert!(created["modifiedTime"].as_str().unwrap().ends_with('Z'));
@@ -2723,7 +2724,7 @@ async fn drive_app_data_notes_round_trip() {
     // Media round trip and the metadata get.
     let (status, got, headers) = send(
         &app,
-        req("GET", "/drive/v3/files/file-1?alt=media", Some(&arun), None),
+        req("GET", &format!("/drive/v3/files/{id}?alt=media"), Some(&arun), None),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -2731,7 +2732,7 @@ async fn drive_app_data_notes_round_trip() {
     assert_eq!(got, notes);
     let (_, meta, _) = send(
         &app,
-        req("GET", "/drive/v3/files/file-1", Some(&arun), None),
+        req("GET", &format!("/drive/v3/files/{id}"), Some(&arun), None),
     )
     .await;
     assert_eq!(meta["name"], "prism-notes.json");
@@ -2740,18 +2741,18 @@ async fn drive_app_data_notes_round_trip() {
     let replaced = json!({ "notes": [] });
     let request = Request::builder()
         .method("PATCH")
-        .uri("/upload/drive/v3/files/file-1?uploadType=media")
+        .uri(format!("/upload/drive/v3/files/{id}?uploadType=media"))
         .header(header::AUTHORIZATION, format!("Bearer {arun}"))
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(replaced.to_string()))
         .unwrap();
     let (status, updated, _) = send(&app, request).await;
     assert_eq!(status, StatusCode::OK, "{updated}");
-    assert_eq!(updated["id"], "file-1");
+    assert_eq!(updated["id"], id.as_str());
     assert_eq!(updated["name"], "prism-notes.json");
     let (_, got, _) = send(
         &app,
-        req("GET", "/drive/v3/files/file-1?alt=media", Some(&arun), None),
+        req("GET", &format!("/drive/v3/files/{id}?alt=media"), Some(&arun), None),
     )
     .await;
     assert_eq!(got, replaced);
@@ -2760,7 +2761,7 @@ async fn drive_app_data_notes_round_trip() {
     let (_, body, _) = send(&app, req("GET", LIST, Some(&arun), None)).await;
     let files = body["files"].as_array().unwrap();
     assert_eq!(files.len(), 1);
-    assert_eq!(files[0]["id"], "file-1");
+    assert_eq!(files[0]["id"], id.as_str());
     assert_eq!(files[0]["name"], "prism-notes.json");
     assert!(files[0]["modifiedTime"].is_string());
     let (_, other, _) = send(
@@ -2783,7 +2784,7 @@ async fn drive_app_data_notes_round_trip() {
         &app,
         req(
             "GET",
-            "/drive/v3/files/file-1?alt=media",
+            &format!("/drive/v3/files/{id}?alt=media"),
             Some(&priya),
             None,
         ),
@@ -2793,7 +2794,7 @@ async fn drive_app_data_notes_round_trip() {
     assert_eq!(err["error"]["status"], "NOT_FOUND");
     let (status, _, _) = send(
         &app,
-        req("GET", "/drive/v3/files/file-9?alt=media", Some(&arun), None),
+        req("GET", "/drive/v3/files/file-99999?alt=media", Some(&arun), None),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -3006,4 +3007,134 @@ async fn availability_get_mark_and_custom_status() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(err["error"]["status"], "PERMISSION_DENIED");
+}
+
+// ----- drive -----
+
+fn drive_token(state: &AppState, user: &str) -> String {
+    let scope = format!("{} {}", confab_proto::SCOPES.join(" "), confab_proto::DRIVE_SCOPE);
+    state.write().mint_token(user, Some(scope)).access_token
+}
+
+fn names(body: &Value) -> Vec<String> {
+    body["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap().to_string())
+        .collect()
+}
+
+fn list_url(q: &str, extra: &str) -> String {
+    format!(
+        "/drive/v3/files?q={}&orderBy=folder,name{extra}",
+        url::form_urlencoded::byte_serialize(q.as_bytes()).collect::<String>()
+    )
+}
+
+#[tokio::test]
+async fn drive_needs_its_scope_and_browses_folders() {
+    let (app, state) = twin();
+    // A sign-in without the Drive scope sees app data but not the Drive.
+    let chat_only = state
+        .write()
+        .mint_token("users/1001", Some(confab_proto::SCOPES.join(" ")))
+        .access_token;
+    let (status, err, _) = send(&app, req("GET", &list_url("'root' in parents", ""), Some(&chat_only), None)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{err}");
+    assert_eq!(err["error"]["status"], "PERMISSION_DENIED");
+
+    let arun = drive_token(&state, "users/1001");
+    let (status, root, _) = send(&app, req("GET", &list_url("'root' in parents and trashed = false", ""), Some(&arun), None)).await;
+    assert_eq!(status, StatusCode::OK, "{root}");
+    let root_names = names(&root);
+    // Folders first, then files, each by name.
+    assert_eq!(&root_names[..4], ["Brand assets", "Photos", "Projects", "Receipts"]);
+    assert!(root_names.contains(&"Budget 2026".to_string()));
+    let projects = root["files"].as_array().unwrap().iter().find(|f| f["name"] == "Projects").unwrap();
+    let projects_id = projects["id"].as_str().unwrap().to_string();
+    assert_eq!(projects["starred"], true);
+    assert_eq!(projects["owners"][0]["me"], true);
+
+    // Create a folder, upload into it, rename, star, move, trash and restore.
+    let (status, made, _) = send(&app, req("POST", "/drive/v3/files", Some(&arun), Some(json!({
+        "name": "Drafts", "mimeType": "application/vnd.google-apps.folder", "parents": [projects_id]
+    })))).await;
+    assert_eq!(status, StatusCode::OK, "{made}");
+    let drafts = made["id"].as_str().unwrap().to_string();
+    let boundary = "b";
+    let body = format!("--{boundary}\r\nContent-Type: application/json\r\n\r\n{{\"name\":\"idea.txt\",\"parents\":[\"{drafts}\"]}}\r\n--{boundary}\r\nContent-Type: text/plain\r\n\r\nhello\r\n--{boundary}--\r\n");
+    let up = Request::builder()
+        .method("POST")
+        .uri("/upload/drive/v3/files?uploadType=multipart")
+        .header(header::AUTHORIZATION, format!("Bearer {arun}"))
+        .header(header::CONTENT_TYPE, format!("multipart/related; boundary={boundary}"))
+        .body(Body::from(body))
+        .unwrap();
+    let (status, idea, _) = send(&app, up).await;
+    assert_eq!(status, StatusCode::OK, "{idea}");
+    assert_eq!(idea["parents"], json!([drafts]));
+    assert_eq!(idea["size"], "5");
+    let idea_id = idea["id"].as_str().unwrap().to_string();
+    let (_, bytes, _) = send(&app, req("GET", &format!("/drive/v3/files/{idea_id}?alt=media"), Some(&arun), None)).await;
+    assert_eq!(bytes, "hello");
+
+    let (status, renamed, _) = send(&app, req("PATCH", &format!("/drive/v3/files/{idea_id}?addParents=root&removeParents={drafts}"), Some(&arun), Some(json!({ "name": "Idea.txt", "starred": true })))).await;
+    assert_eq!(status, StatusCode::OK, "{renamed}");
+    assert_eq!(renamed["name"], "Idea.txt");
+    assert_eq!(renamed["parents"], json!(["root"]));
+    let (_, starred, _) = send(&app, req("GET", &list_url("starred and trashed = false", ""), Some(&arun), None)).await;
+    assert!(names(&starred).contains(&"Idea.txt".to_string()));
+    let (_, inside, _) = send(&app, req("GET", &list_url(&format!("'{drafts}' in parents"), ""), Some(&arun), None)).await;
+    assert!(names(&inside).is_empty());
+
+    send(&app, req("PATCH", &format!("/drive/v3/files/{idea_id}"), Some(&arun), Some(json!({ "trashed": true })))).await;
+    let (_, trash, _) = send(&app, req("GET", &list_url("trashed = true", ""), Some(&arun), None)).await;
+    assert_eq!(names(&trash), ["Idea.txt"]);
+    send(&app, req("PATCH", &format!("/drive/v3/files/{idea_id}"), Some(&arun), Some(json!({ "trashed": false })))).await;
+    let (_, trash, _) = send(&app, req("GET", &list_url("trashed = true", ""), Some(&arun), None)).await;
+    assert!(names(&trash).is_empty());
+
+    // Search by name, case-insensitively.
+    let (_, found, _) = send(&app, req("GET", &list_url("fullText contains 'rollout' and trashed = false", ""), Some(&arun), None)).await;
+    assert_eq!(names(&found), ["Rollout checklist.md"]);
+}
+
+#[tokio::test]
+async fn drive_sharing_shared_drives_and_export() {
+    let (app, state) = twin();
+    let priya = drive_token(&state, "users/1002");
+
+    // Shared with me: what Arun shared, including what is inside the shared folder.
+    let (_, shared, _) = send(&app, req("GET", &list_url("sharedWithMe and trashed = false", ""), Some(&priya), None)).await;
+    assert_eq!(names(&shared), ["Brand assets", "Colours.json", "Logo usage.pdf", "Q4 planning"]);
+    let q4 = shared["files"].as_array().unwrap().iter().find(|f| f["name"] == "Q4 planning").unwrap().clone();
+    assert_eq!(q4["owners"][0]["me"], false);
+    assert_eq!(q4["capabilities"]["canTrash"], false);
+    let q4_id = q4["id"].as_str().unwrap();
+    // Read-only to her: renaming is refused, a Docs file exports as PDF.
+    let (status, _, _) = send(&app, req("PATCH", &format!("/drive/v3/files/{q4_id}"), Some(&priya), Some(json!({ "name": "Mine now" })))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let resp = app.clone().oneshot(req("GET", &format!("/drive/v3/files/{q4_id}/export?mimeType=application/pdf"), Some(&priya), None)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "application/pdf");
+    let pdf = resp.into_body().collect().await.unwrap().to_bytes();
+    assert!(pdf.starts_with(b"%PDF-1.4"));
+
+    // Arun's own My Drive stays his.
+    let (_, root, _) = send(&app, req("GET", &list_url("'root' in parents", ""), Some(&priya), None)).await;
+    assert!(!names(&root).contains(&"Q4 planning".to_string()));
+
+    // The shared drive and its folders.
+    let (_, drives, _) = send(&app, req("GET", "/drive/v3/drives", Some(&priya), None)).await;
+    assert_eq!(drives["drives"], json!([{ "kind": "drive#drive", "id": "drv-1", "name": "Team" }]));
+    let (_, team, _) = send(&app, req("GET", &list_url("'drv-1' in parents and trashed = false", "&corpora=drive&driveId=drv-1"), Some(&priya), None)).await;
+    assert_eq!(names(&team), ["Engineering", "Marketing", "Team directory"]);
+    assert_eq!(team["files"][0]["driveId"], "drv-1");
+    let eng = team["files"][0]["id"].as_str().unwrap().to_string();
+    let (status, made, _) = send(&app, req("POST", "/drive/v3/files", Some(&priya), Some(json!({
+        "name": "Postmortems", "mimeType": "application/vnd.google-apps.folder", "parents": [eng]
+    })))).await;
+    assert_eq!(status, StatusCode::OK, "{made}");
+    assert_eq!(made["driveId"], "drv-1");
 }

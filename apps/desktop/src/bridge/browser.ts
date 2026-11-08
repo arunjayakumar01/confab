@@ -2,9 +2,10 @@
 // note: browser mode is a dev convenience; tokens live in the Rust core on desktop. Here the
 // access token sits in sessionStorage, there is no refresh, and a 401 simply signs you out.
 import type {
-  Account, Attachment, AuthStatus, Availability, Bridge, CalEvent, CalendarEntry, ClientMsg, EventsPage, MeetSpace, MeetStatus, Membership, Message, Reaction, ServerMsg, ShellEvent, Space, Task, User,
+  Account, Attachment, AuthStatus, Availability, Bridge, CalEvent, CalendarEntry, ClientMsg, DriveItem, DrivePage, EventsPage, MeetSpace, SharedDrive, MeetStatus, Membership, Message, Reaction, ServerMsg, ShellEvent, Space, Task, User,
 } from "../bridge-types";
 import { uuid } from "../lib/ids";
+import { driveQuery, isGoogleFile } from "../lib/drive";
 import { personToUser, type Person } from "../lib/people";
 
 const E = import.meta.env;
@@ -32,7 +33,10 @@ const SCOPES = [
   "https://www.googleapis.com/auth/chat.users.readstate",
   "https://www.googleapis.com/auth/chat.spaces.create",
   "https://www.googleapis.com/auth/directory.readonly",
+  // note: browser mode is dev-only, so it asks for Drive up front instead of incrementally.
+  "https://www.googleapis.com/auth/drive",
 ];
+const DRIVE_FIELDS = "id,name,mimeType,parents,starred,trashed,modifiedTime,size,webViewLink,iconLink,owners(displayName,emailAddress,photoLink,me),shared,driveId,shortcutDetails,capabilities(canEdit,canRename,canTrash,canAddChildren,canDownload)";
 const TOKEN_KEY = "prism.token";
 const VERIFIER_KEY = "prism.pkce";
 const DEVICE_KEY = "prism.device";
@@ -407,6 +411,38 @@ export function createBrowserBridge(): Bridge {
       const boundary = "prism" + uuid();
       const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ name: "prism-notes.json", parents: ["appDataFolder"] })}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${json}\r\n--${boundary}--`;
       await fetch(`${up}/files?uploadType=multipart`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` }, body });
+    },
+    driveStatus: async () => !!token,
+    driveConnect: async () => !!token,
+    async driveList(where, pageToken) {
+      const { q, orderBy, driveId } = driveQuery(where);
+      const p = new URLSearchParams({ q, fields: `nextPageToken,files(${DRIVE_FIELDS})`, pageSize: "100", supportsAllDrives: "true", includeItemsFromAllDrives: "true", ...(driveId ? { corpora: "drive", driveId } : { corpora: "allDrives" }) });
+      if (orderBy) p.set("orderBy", orderBy);
+      if (pageToken) p.set("pageToken", pageToken);
+      const r = await api<Partial<DrivePage>>("GET", `/drive/v3/files?${p}`, undefined, undefined, endpoints.driveApi);
+      return { files: r.files ?? [], nextPageToken: r.nextPageToken };
+    },
+    driveDrives: () => api<{ drives?: SharedDrive[] }>("GET", "/drive/v3/drives?pageSize=100", undefined, undefined, endpoints.driveApi).then((r) => r.drives ?? []),
+    driveCreateFolder: (name, parent) => api<DriveItem>("POST", `/drive/v3/files?supportsAllDrives=true&fields=${encodeURIComponent(DRIVE_FIELDS)}`, { name, mimeType: "application/vnd.google-apps.folder", parents: [parent] }, undefined, endpoints.driveApi),
+    async driveUpload(file, parent) {
+      const boundary = "confab" + uuid();
+      const head = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ name: file.name, parents: [parent] })}\r\n--${boundary}\r\nContent-Type: ${file.type || "application/octet-stream"}\r\n\r\n`;
+      const body = new Blob([head, file, `\r\n--${boundary}--\r\n`]);
+      const res = await fetch(`${endpoints.driveApi}/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=${encodeURIComponent(DRIVE_FIELDS)}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` }, body });
+      if (!res.ok) throw new ApiError(res.status, `${res.status} ${await res.text()}`);
+      return res.json() as Promise<DriveItem>;
+    },
+    driveUpdate(id, patch, move) {
+      const p = new URLSearchParams({ supportsAllDrives: "true", fields: DRIVE_FIELDS });
+      if (move) { p.set("addParents", move.add); p.set("removeParents", move.remove); }
+      return api<DriveItem>("PATCH", `/drive/v3/files/${encodeURIComponent(id)}?${p}`, patch, undefined, endpoints.driveApi);
+    },
+    async driveContentUrl(item) {
+      // The viewer cannot send a Bearer header, so the bytes come down here and play from a blob.
+      const path = isGoogleFile(item.mimeType) ? `/drive/v3/files/${encodeURIComponent(item.id)}/export?mimeType=application%2Fpdf` : `/drive/v3/files/${encodeURIComponent(item.id)}?alt=media&supportsAllDrives=true`;
+      const res = await fetch(`${endpoints.driveApi}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+      return URL.createObjectURL(await res.blob());
     },
     createMeet: () => api<MeetSpace>("POST", "/v2/spaces", { config: { accessType: "TRUSTED" } }, undefined, endpoints.meetApi),
     async meetStatus(code): Promise<MeetStatus> {

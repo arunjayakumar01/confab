@@ -22,6 +22,22 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct Caller {
     pub user: String,
+    /// Granted scopes; `None` for a token minted without asking, which may do anything.
+    pub scope: Option<String>,
+}
+
+impl Caller {
+    /// 403 the way Google answers a token without `scope`.
+    pub fn require(&self, scope: &str) -> Result<(), ApiError> {
+        match &self.scope {
+            Some(granted) if !granted.split_whitespace().any(|s| s == scope) => Err(ApiError::new(
+                axum::http::StatusCode::FORBIDDEN,
+                "PERMISSION_DENIED",
+                "Request had insufficient authentication scopes.",
+            )),
+            _ => Ok(()),
+        }
+    }
 }
 
 impl FromRequestParts<Arc<AppState>> for Caller {
@@ -51,11 +67,11 @@ impl FromRequestParts<Arc<AppState>> for Caller {
         let token = from_header
             .or_else(from_query)
             .ok_or_else(ApiError::unauthenticated)?;
-        let user = state
+        let (user, scope) = state
             .read()
             .caller_for(&token)
             .ok_or_else(ApiError::unauthenticated)?;
-        Ok(Caller { user })
+        Ok(Caller { user, scope })
     }
 }
 
@@ -261,13 +277,14 @@ async fn token(
                 st.refresh_tokens.get(refresh).cloned().ok_or_else(|| {
                     OAuthError::invalid_grant("Token has been expired or revoked.")
                 })?;
-            let (access_token, expires_in) = st.issue_access(&user);
+            let scope = st.refresh_scopes.get(refresh).cloned();
+            let (access_token, expires_in) = st.issue_access(&user, scope.clone());
             Ok(Json(TokenResponse {
                 access_token,
                 refresh_token: None,
                 expires_in,
                 id_token: None,
-                scope: Some(confab_proto::SCOPES.join(" ")),
+                scope: scope.or_else(|| Some(confab_proto::SCOPES.join(" "))),
                 token_type: "Bearer".into(),
             }))
         }

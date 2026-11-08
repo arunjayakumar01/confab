@@ -336,13 +336,28 @@ pub async fn upload_attachment_bytes(
     state: S<'_>,
 ) -> Result<Attachment, String> {
     let st = state.active();
+    let (bytes, header) = raw_upload(&request)?;
+    let space = header("x-prism-space").ok_or("x-prism-space header is required")?;
+    let (name, mime) = upload_name_mime(&header)?;
+    let r = st.google.upload_bytes(&space, &name, &mime, bytes).await?;
+    Ok(Attachment {
+        content_name: Some(name),
+        content_type: Some(mime),
+        attachment_data_ref: r.attachment_data_ref,
+        source: Some("UPLOADED_CONTENT".into()),
+        ..Default::default()
+    })
+}
+
+type Header<'a> = Box<dyn Fn(&str) -> Option<String> + Send + Sync + 'a>;
+
+/// The raw IPC body of an upload and a lookup for its trimmed, non-empty headers.
+fn raw_upload<'a>(request: &'a Request<'_>) -> Result<(Vec<u8>, Header<'a>), String> {
     let bytes = match request.body() {
         InvokeBody::Raw(b) => b.clone(),
-        InvokeBody::Json(_) => {
-            return Err("upload_attachment_bytes expects the file bytes as a raw body".into())
-        }
+        InvokeBody::Json(_) => return Err("expected the file bytes as a raw body".into()),
     };
-    let header = |name: &str| {
+    let header = move |name: &str| {
         request
             .headers()
             .get(name)
@@ -351,7 +366,11 @@ pub async fn upload_attachment_bytes(
             .filter(|s| !s.is_empty())
             .map(str::to_string)
     };
-    let space = header("x-prism-space").ok_or("x-prism-space header is required")?;
+    Ok((bytes, Box::new(header)))
+}
+
+/// `x-prism-name` (base64 standard of the UTF-8 filename) and `x-prism-mime`.
+fn upload_name_mime(header: &Header<'_>) -> Result<(String, String), String> {
     let encoded = header("x-prism-name").ok_or("x-prism-name header is required")?;
     let name = base64::engine::general_purpose::STANDARD
         .decode(encoded.as_bytes())
@@ -361,14 +380,125 @@ pub async fn upload_attachment_bytes(
         .filter(|n| !n.is_empty())
         .ok_or("x-prism-name must be the base64 of a UTF-8 filename")?;
     let mime = header("x-prism-mime").unwrap_or_else(|| "application/octet-stream".into());
-    let r = st.google.upload_bytes(&space, &name, &mime, bytes).await?;
-    Ok(Attachment {
-        content_name: Some(name),
-        content_type: Some(mime),
-        attachment_data_ref: r.attachment_data_ref,
-        source: Some("UPLOADED_CONTENT".into()),
-        ..Default::default()
-    })
+    Ok((name, mime))
+}
+
+// ----- Drive view -----
+
+/// Whether the sign-in includes Drive access.
+#[tauri::command]
+pub async fn drive_status(state: S<'_>) -> Result<bool, String> {
+    Ok(state.active().auth.has_drive())
+}
+
+/// Asks Google for Drive access in the browser, on top of the current sign-in.
+#[tauri::command]
+pub async fn drive_connect(state: S<'_>) -> Result<bool, String> {
+    state.active().auth.grant_drive().await
+}
+
+#[tauri::command]
+pub async fn drive_list(
+    q: String,
+    order_by: String,
+    drive_id: Option<String>,
+    page_token: Option<String>,
+    state: S<'_>,
+) -> Result<serde_json::Value, String> {
+    let st = state.active();
+    st.google
+        .drive_list(&q, &order_by, drive_id.as_deref(), page_token.as_deref())
+        .await
+        .map_err(|e| {
+            tracing::warn!("drive_list({q:?}): {e}");
+            e.to_string()
+        })
+}
+
+#[tauri::command]
+pub async fn drive_drives(state: S<'_>) -> Result<serde_json::Value, String> {
+    Ok(state.active().google.drive_drives().await?)
+}
+
+#[tauri::command]
+pub async fn drive_create_folder(
+    name: String,
+    parent: String,
+    state: S<'_>,
+) -> Result<serde_json::Value, String> {
+    Ok(state
+        .active()
+        .google
+        .drive_create_folder(&name, &parent)
+        .await?)
+}
+
+/// Uploads a dropped file by path into `parent`.
+#[tauri::command]
+pub async fn drive_upload(
+    path: String,
+    parent: String,
+    state: S<'_>,
+) -> Result<serde_json::Value, String> {
+    let p = std::path::Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .ok_or("not a file path")?;
+    let bytes = tokio::fs::read(p)
+        .await
+        .map_err(|e| format!("cannot read {}: {e}", p.display()))?;
+    let mime = mime_guess::from_path(p).first_or_octet_stream().to_string();
+    Ok(state
+        .active()
+        .google
+        .drive_upload(&name, &mime, &parent, bytes)
+        .await?)
+}
+
+/// Uploads from the web view: raw body, `x-prism-parent`, `x-prism-name`, `x-prism-mime`.
+#[tauri::command]
+pub async fn drive_upload_bytes(
+    request: Request<'_>,
+    state: S<'_>,
+) -> Result<serde_json::Value, String> {
+    let (bytes, header) = raw_upload(&request)?;
+    let parent = header("x-prism-parent").ok_or("x-prism-parent header is required")?;
+    let (name, mime) = upload_name_mime(&header)?;
+    Ok(state
+        .active()
+        .google
+        .drive_upload(&name, &mime, &parent, bytes)
+        .await?)
+}
+
+/// Rename, star, trash or restore (`patch`), and move (`add_parents` / `remove_parents`).
+#[tauri::command]
+pub async fn drive_update(
+    id: String,
+    patch: serde_json::Value,
+    add_parents: Option<String>,
+    remove_parents: Option<String>,
+    state: S<'_>,
+) -> Result<serde_json::Value, String> {
+    Ok(state
+        .active()
+        .google
+        .drive_update(
+            &id,
+            &patch,
+            add_parents.as_deref(),
+            remove_parents.as_deref(),
+        )
+        .await?)
+}
+
+/// A `prism-media` URL for a file's bytes (Google Docs exported as PDF), for the viewer and Save.
+#[tauri::command]
+pub async fn drive_content_url(id: String, mime: String, state: S<'_>) -> Result<String, String> {
+    Ok(crate::shell::media_scheme_url(
+        &state.active().google.drive_content_url(&id, &mime),
+    ))
 }
 
 /// The full attachment resource. A message list carries a Drive attachment with only

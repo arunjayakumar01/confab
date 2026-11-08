@@ -151,6 +151,32 @@ export type ShellEvent =
 /** One Google account signed into this Confab; the shell keeps a profile per account. */
 export interface Account { id: string; email?: string; displayName?: string; photo?: string; signedIn: boolean; active: boolean; unread: number }
 
+/** A Drive file or folder, with the fields the Drive view asks Google for. */
+export interface DriveItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  parents?: string[];
+  starred?: boolean;
+  trashed?: boolean;
+  modifiedTime?: string;
+  /** Bytes, as a decimal string; absent for folders and Google Docs files. */
+  size?: string;
+  webViewLink?: string;
+  owners?: { displayName?: string; emailAddress?: string; photoLink?: string; me?: boolean }[];
+  shared?: boolean;
+  driveId?: string;
+  shortcutDetails?: { targetId: string; targetMimeType?: string };
+  capabilities?: { canEdit?: boolean; canRename?: boolean; canTrash?: boolean; canAddChildren?: boolean; canDownload?: boolean };
+}
+export interface SharedDrive { id: string; name: string }
+export interface DrivePage { files: DriveItem[]; nextPageToken?: string }
+/** What the Drive view shows: a place, a folder (in a shared drive when `driveId` is set), or a search. */
+export type DriveWhere =
+  | { kind: "root" } | { kind: "shared" } | { kind: "starred" } | { kind: "recent" } | { kind: "trash" } | { kind: "drives" }
+  | { kind: "folder"; id: string; driveId?: string }
+  | { kind: "search"; query: string };
+
 export interface Bridge {
   authStatus(): Promise<AuthStatus>;
   /** Opens the Google (or twin) consent page; resolves when signed in. */
@@ -233,6 +259,19 @@ export interface Bridge {
   /** Confab's notes, one JSON document in the user's Drive app data (Keep has no API for a signed-in user). */
   notesLoad(): Promise<string | null>;
   notesSave(json: string): Promise<void>;
+  /** Drive: whether the sign-in includes Drive access, and asking for it (browser consent, chat sign-in kept). */
+  driveStatus(): Promise<boolean>;
+  driveConnect(): Promise<boolean>;
+  driveList(where: DriveWhere, pageToken?: string): Promise<DrivePage>;
+  driveDrives(): Promise<SharedDrive[]>;
+  driveCreateFolder(name: string, parent: string): Promise<DriveItem>;
+  driveUpload(file: File, parent: string): Promise<DriveItem>;
+  /** Desktop drop: upload a file by path. */
+  driveUploadPath?(path: string, parent: string): Promise<DriveItem>;
+  /** Rename, star, trash or restore; `move` swaps one parent for another. */
+  driveUpdate(id: string, patch: { name?: string; starred?: boolean; trashed?: boolean }, move?: { add: string; remove: string }): Promise<DriveItem>;
+  /** A URL the viewer and Save can load: the bytes, or a PDF export of a Google Docs file. */
+  driveContentUrl(item: DriveItem): Promise<string>;
   /** Google Meet: a new meeting space, who is in a running one, and the huddle message Google Chat understands. */
   createMeet(): Promise<MeetSpace>;
   meetStatus(code: string): Promise<MeetStatus>;

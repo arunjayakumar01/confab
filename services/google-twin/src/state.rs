@@ -44,6 +44,8 @@ impl AppState {
 pub struct TokenRec {
     pub user: String,
     pub expires_at: DateTime<Utc>,
+    /// Space-separated scopes granted; `None` (a token minted without asking) may do anything.
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -161,8 +163,8 @@ impl AvailabilityRec {
     }
 }
 
-/// One file in the Drive app-data folder of the caller who created it.
-#[derive(Debug, Clone)]
+/// One Drive file or folder: in the owner's app-data folder, their My Drive, or a shared drive.
+#[derive(Debug, Clone, Default)]
 pub struct DriveFile {
     /// `file-{n}`
     pub id: String,
@@ -173,10 +175,22 @@ pub struct DriveFile {
     pub bytes: Vec<u8>,
     /// RFC 3339 with milliseconds, the way Drive prints `modifiedTime`.
     pub modified_time: String,
+    /// Folder ids; `root` is the owner's My Drive. Empty for app data.
+    pub parents: Vec<String>,
+    /// In the hidden app-data folder: never listed outside `spaces=appDataFolder`.
+    pub app_data: bool,
+    pub starred: bool,
+    pub trashed: bool,
+    /// `users/{id}` the owner shared it with.
+    pub shared_with: Vec<String>,
+    /// The shared drive it lives in; every twin user is a member of every shared drive.
+    pub drive_id: Option<String>,
 }
 
+pub const DRIVE_FOLDER: &str = "application/vnd.google-apps.folder";
+
 impl DriveFile {
-    /// `{kind, id, name, mimeType, modifiedTime}`, the metadata Drive answers with.
+    /// `{kind, id, name, mimeType, modifiedTime}`, the metadata Drive answers for app data.
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
             "kind": "drive#file",
@@ -185,6 +199,55 @@ impl DriveFile {
             "mimeType": self.content_type,
             "modifiedTime": self.modified_time,
         })
+    }
+
+    /// Who may see it in Drive (app data is reached only through `spaces=appDataFolder`).
+    pub fn visible_to(&self, user: &str) -> bool {
+        !self.app_data
+            && (self.owner == user
+                || self.shared_with.iter().any(|u| u == user)
+                || self.drive_id.is_some())
+    }
+
+    /// The full metadata the Drive view asks for, as seen by `caller`.
+    pub fn to_full_json(&self, store: &Store, caller: &str) -> serde_json::Value {
+        let owner = store.users.get(&self.owner);
+        let mine = self.owner == caller || self.drive_id.is_some();
+        let folder = self.content_type == DRIVE_FOLDER;
+        let mut v = serde_json::json!({
+            "kind": "drive#file",
+            "id": self.id,
+            "name": self.name,
+            "mimeType": self.content_type,
+            "modifiedTime": self.modified_time,
+            "parents": self.parents,
+            "starred": self.starred,
+            "trashed": self.trashed,
+            "shared": !self.shared_with.is_empty(),
+            // note: a Google-shaped link; the twin itself has no Drive web UI to open.
+            "webViewLink": format!("https://drive.google.com/{}/{}", if folder { "drive/folders" } else { "file/d" }, self.id),
+            "owners": if self.drive_id.is_some() { serde_json::json!([]) } else { serde_json::json!([{
+                "displayName": owner.and_then(|u| u.display_name.clone()).unwrap_or_default(),
+                "emailAddress": owner.and_then(|u| u.email.clone()).unwrap_or_default(),
+                "photoLink": owner.and_then(|u| u.avatar_url.clone()),
+                "me": self.owner == caller,
+            }]) },
+            "capabilities": {
+                "canEdit": mine, "canRename": mine, "canTrash": mine,
+                "canAddChildren": folder && mine, "canDownload": true,
+            },
+        });
+        if !folder
+            && !self
+                .content_type
+                .starts_with("application/vnd.google-apps.")
+        {
+            v["size"] = serde_json::json!(self.bytes.len().to_string());
+        }
+        if let Some(d) = &self.drive_id {
+            v["driveId"] = serde_json::json!(d);
+        }
+        v
     }
 }
 
@@ -212,6 +275,8 @@ pub struct Store {
     pub access_tokens: HashMap<String, TokenRec>,
     /// refresh token → `users/{id}`
     pub refresh_tokens: HashMap<String, String>,
+    /// refresh token → the scopes it was granted, so a refresh keeps them.
+    pub refresh_scopes: HashMap<String, String>,
     /// Google Tasks, one default list shared by every twin user: `task-{n}` → task.
     // note: real Google keeps a list per account; the twin's single list keeps the seed small.
     pub tasks: BTreeMap<String, TaskRec>,
@@ -230,8 +295,10 @@ pub struct Store {
     pub cal_seq: u64,
     /// The oldest sync token still honoured (`CAL_SYNC_HISTORY` changes back).
     pub cal_min_sync: u64,
-    /// Drive app-data files: `file-{n}` → file.
+    /// Drive files, app data and the rest: `file-{n}` → file.
     pub drive_files: BTreeMap<String, DriveFile>,
+    /// Shared drives: `drv-{n}` → name.
+    pub shared_drives: BTreeMap<String, String>,
     /// Next `file-{n}`.
     pub next_drive_id: u64,
     /// `users/{id}` → presence; absent means `ACTIVE` with no custom status.
@@ -483,7 +550,7 @@ impl Store {
 
     // ---- tokens -------------------------------------------------------------
 
-    pub fn issue_access(&mut self, user: &str) -> (String, i64) {
+    pub fn issue_access(&mut self, user: &str, scope: Option<String>) -> (String, i64) {
         let token = format!("ya29.twin.{}", random_token());
         let ttl = self.token_ttl_secs;
         self.access_tokens.insert(
@@ -491,16 +558,20 @@ impl Store {
             TokenRec {
                 user: user.to_string(),
                 expires_at: Utc::now() + Duration::seconds(ttl),
+                scope,
             },
         );
         (token, ttl)
     }
 
     pub fn mint_token(&mut self, user: &str, scope: Option<String>) -> TokenResponse {
-        let (access_token, expires_in) = self.issue_access(user);
+        let (access_token, expires_in) = self.issue_access(user, scope.clone());
         let refresh = format!("1//twin.{}", random_token());
         self.refresh_tokens
             .insert(refresh.clone(), user.to_string());
+        if let Some(sc) = &scope {
+            self.refresh_scopes.insert(refresh.clone(), sc.clone());
+        }
         TokenResponse {
             access_token,
             refresh_token: Some(refresh),
@@ -511,13 +582,13 @@ impl Store {
         }
     }
 
-    /// Resolve a bearer token to `users/{id}`; expired tokens are dropped.
-    pub fn caller_for(&self, token: &str) -> Option<String> {
+    /// Resolve a bearer token to `(users/{id}, granted scopes)`; expired tokens are dropped.
+    pub fn caller_for(&self, token: &str) -> Option<(String, Option<String>)> {
         let rec = self.access_tokens.get(token)?;
         if rec.expires_at < Utc::now() {
             return None;
         }
-        Some(rec.user.clone())
+        Some((rec.user.clone(), rec.scope.clone()))
     }
 
     pub fn revoke(&mut self, token: &str) -> bool {
@@ -776,18 +847,76 @@ impl Store {
             content_type: content_type.to_string(),
             bytes,
             modified_time: Self::task_time(now),
+            app_data: true,
+            ..Default::default()
         };
         self.drive_files.insert(file.id.clone(), file.clone());
         file
     }
 
-    /// One of `owner`'s files; another account's file is as good as absent.
+    /// Insert a Drive file or folder under `parent` (`root` or a folder id) with the next id.
+    pub fn new_drive_item(
+        &mut self,
+        mut file: DriveFile,
+        parent: &str,
+        now: DateTime<Utc>,
+    ) -> DriveFile {
+        self.next_drive_id += 1;
+        file.id = format!("file-{}", self.next_drive_id);
+        file.modified_time = Self::task_time(now);
+        file.app_data = false;
+        file.parents = vec![parent.to_string()];
+        // Inside a shared drive (the drive itself or one of its folders) the item belongs to it.
+        file.drive_id = if self.shared_drives.contains_key(parent) {
+            Some(parent.to_string())
+        } else {
+            self.drive_files
+                .get(parent)
+                .and_then(|p| p.drive_id.clone())
+        };
+        // Like Drive, a file in a shared folder is shared with the same people.
+        if let Some(p) = self.drive_files.get(parent) {
+            for u in &p.shared_with {
+                if !file.shared_with.contains(u) {
+                    file.shared_with.push(u.clone());
+                }
+            }
+        }
+        self.drive_files.insert(file.id.clone(), file.clone());
+        file
+    }
+
+    /// Shares `id` and everything under it with `users`.
+    pub fn share_tree(&mut self, id: &str, users: &[String]) {
+        let mut stack = vec![id.to_string()];
+        while let Some(cur) = stack.pop() {
+            if let Some(f) = self.drive_files.get_mut(&cur) {
+                for u in users {
+                    if !f.shared_with.contains(u) {
+                        f.shared_with.push(u.clone());
+                    }
+                }
+            }
+            stack.extend(
+                self.drive_files
+                    .values()
+                    .filter(|f| f.parents.iter().any(|p| p == &cur))
+                    .map(|f| f.id.clone()),
+            );
+        }
+    }
+
+    /// One of `owner`'s app-data files; another account's file is as good as absent.
     pub fn drive_file(&self, owner: &str, id: &str) -> Option<&DriveFile> {
-        self.drive_files.get(id).filter(|f| f.owner == owner)
+        self.drive_files
+            .get(id)
+            .filter(|f| f.owner == owner && f.app_data)
     }
 
     pub fn drive_file_mut(&mut self, owner: &str, id: &str) -> Option<&mut DriveFile> {
-        self.drive_files.get_mut(id).filter(|f| f.owner == owner)
+        self.drive_files
+            .get_mut(id)
+            .filter(|f| f.owner == owner && f.app_data)
     }
 
     /// `owner`'s files in id order, optionally only those named `name`.
@@ -795,7 +924,7 @@ impl Store {
         let mut v: Vec<&DriveFile> = self
             .drive_files
             .values()
-            .filter(|f| f.owner == owner && name.is_none_or(|n| f.name == n))
+            .filter(|f| f.owner == owner && f.app_data && name.is_none_or(|n| f.name == n))
             .collect();
         v.sort_by_key(|f| {
             f.id.strip_prefix("file-")
@@ -935,8 +1064,8 @@ mod tests {
     #[test]
     fn tokens_expire() {
         let mut s = store();
-        let (t, _) = s.issue_access("users/1002");
-        assert_eq!(s.caller_for(&t).as_deref(), Some("users/1002"));
+        let (t, _) = s.issue_access("users/1002", None);
+        assert_eq!(s.caller_for(&t).map(|c| c.0).as_deref(), Some("users/1002"));
         s.access_tokens.get_mut(&t).unwrap().expires_at = Utc::now() - Duration::seconds(1);
         assert!(s.caller_for(&t).is_none());
     }

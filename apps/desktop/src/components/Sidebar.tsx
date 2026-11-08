@@ -103,6 +103,10 @@ export function Sidebar() {
                   <span className="row__icon"><Icon n="edit" /></span>
                   <span className="row__name">Notes</span>
                 </button>
+                <button type="button" className={`row${feed === "drive" ? " row--active" : ""}`} data-space="feed:drive" aria-current={feed === "drive" ? "page" : undefined} onClick={() => openFeed("drive")}>
+                  <span className="row__icon"><Icon n="drive" /></span>
+                  <span className="row__name">Drive</span>
+                </button>
               </div>
               {view === "home" && stars.length > 0 && (
                 <Section id="starred" title="Starred" open={open.starred !== false} onToggle={toggle}>

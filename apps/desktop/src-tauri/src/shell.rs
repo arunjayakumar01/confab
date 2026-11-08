@@ -172,6 +172,8 @@ pub fn media_origins(endpoints: &Endpoints) -> Vec<String> {
         }
     };
     push(&endpoints.chat_api);
+    // Drive file bytes for the Drive view (www.googleapis.com on Google).
+    push(&endpoints.drive_api);
     if !endpoints.chat_api.contains("googleapis.com") {
         // note: the twin builds media URLs on PRISM_TWIN_BASE, which Endpoints only exposes folded into
         // chat_api; re-read it here so a PRISM_CHAT_API override does not strand the twin's own URLs.

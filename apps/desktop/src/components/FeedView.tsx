@@ -11,6 +11,7 @@ import { positions } from "./MessageList";
 import { MessageRow } from "./MessageRow";
 import { CalendarView } from "./CalendarView";
 import { NotesView } from "./NotesView";
+import { DriveView } from "./DriveView";
 import { People, Todos } from "./Todos";
 
 /** Unreads, Saved, Todos and People in the main pane: one header, then the list. */
@@ -19,6 +20,7 @@ export function FeedView({ feed }: { feed: Feed }) {
   if (feed === "people") return <People />;
   if (feed === "calendar") return <CalendarView />;
   if (feed === "notes") return <NotesView />;
+  if (feed === "drive") return <DriveView />;
   return feed === "unreads" ? <Unreads /> : <Saved />;
 }
 

@@ -6,6 +6,8 @@ import type {
 import { strToU8, zipSync } from "fflate";
 import * as XLSX from "xlsx";
 import { uuid } from "../lib/ids";
+import { FOLDER, isGoogleFile } from "../lib/drive";
+import type { DriveItem, DriveWhere, SharedDrive } from "../bridge-types";
 import { webNotify } from "./browser";
 
 const ME = "users/1001";
@@ -411,6 +413,7 @@ export function createMockBridge(): Bridge {
   }
 
   const delay = (ms = 120) => new Promise<void>((r) => setTimeout(r, ms));
+  const driveApi = mockDrive();
 
   const bridge: Bridge = {
     async authStatus(): Promise<AuthStatus> {
@@ -744,6 +747,7 @@ export function createMockBridge(): Bridge {
       if (e) { e.status = "cancelled"; e._clock = ++calClock; }
     },
     async notesLoad() { await delay(200); return notesJson; },
+    ...driveApi,
     async notesSave(json) { await delay(150); notesJson = json; },
     async createMeet(): Promise<MeetSpace> {
       await delay();
@@ -806,4 +810,110 @@ export function createMockBridge(): Bridge {
     },
   };
   return bridge;
+}
+
+// ---- Drive: an in-memory My Drive, a few shared files and one shared drive ----
+const DOC = "application/vnd.google-apps.document";
+const SHEET = "application/vnd.google-apps.spreadsheet";
+const SLIDES = "application/vnd.google-apps.presentation";
+
+function mockDrive(): Pick<Bridge, "driveStatus" | "driveConnect" | "driveList" | "driveDrives" | "driveCreateFolder" | "driveUpload" | "driveUpdate" | "driveContentUrl"> {
+  const me = USERS[ME]!;
+  const priya = USERS["users/1002"]!;
+  const owner = (u: User) => [{ displayName: u.displayName, emailAddress: u.email, me: u.name === ME }];
+  const drives: SharedDrive[] = [{ id: "drv-1", name: "Team" }];
+  const items: DriveItem[] = [];
+  const bytes = new Map<string, string>(); // id -> data URL
+  let seq = 0;
+  let connected = false;
+  const day = 86_400_000;
+  const add = (name: string, mimeType: string, parent: string, o: { by?: User; starred?: boolean; data?: string; ago?: number; shared?: boolean } = {}): string => {
+    const id = `mf${++seq}`;
+    const inDrive = parent === "drv-1" || items.find((i) => i.id === parent)?.driveId;
+    const by = o.by ?? me;
+    items.push({
+      id, name, mimeType, parents: [parent], starred: !!o.starred, trashed: false,
+      modifiedTime: new Date(Date.now() - (o.ago ?? seq) * day / 3).toISOString(),
+      ...(o.data ? { size: String(Math.round(o.data.length * 0.75)) } : {}),
+      webViewLink: `https://drive.google.com/${mimeType === FOLDER ? "drive/folders" : "file/d"}/${id}`,
+      owners: inDrive ? [] : owner(by), shared: !!o.shared || by.name !== ME, driveId: inDrive ? "drv-1" : undefined,
+      capabilities: { canEdit: by.name === ME || !!inDrive, canRename: by.name === ME || !!inDrive, canTrash: by.name === ME || !!inDrive, canAddChildren: mimeType === FOLDER, canDownload: true },
+    });
+    if (o.data) bytes.set(id, o.data);
+    return id;
+  };
+  const txt = (s: string, type = "text/plain") => `data:${type};base64,${btoa(s)}`;
+  const projects = add("Projects", FOLDER, "root", { starred: true });
+  const payments = add("Payments revamp", FOLDER, projects);
+  add("Payments revamp spec", DOC, payments, { ago: 1 });
+  add("Rollout checklist.md", "text/markdown", payments, { data: txt("# Rollout\n\n- [x] Feature flag\n- [ ] Canary 5%\n- [ ] Full rollout\n", "text/markdown"), ago: 2 });
+  add("latency.csv", "text/csv", payments, { data: txt("day,p50_ms,p95_ms\nMon,82,210\nTue,79,198\nWed,91,260\n", "text/csv"), ago: 3 });
+  add("Roadmap", SLIDES, projects, { ago: 4 });
+  const receipts = add("Receipts", FOLDER, "root");
+  add("Laptop invoice.pdf", "application/pdf", receipts, { data: PDF, ago: 9 });
+  const design = add("Design", FOLDER, "root");
+  add("Glass panels.png", "image/svg+xml", design, { data: IMG, ago: 5 });
+  add("motion-spec.pdf", "application/pdf", design, { data: PDF, ago: 6, shared: true });
+  add("Budget 2026", SHEET, "root", { starred: true, ago: 2 });
+  add("Meeting notes.txt", "text/plain", "root", { data: txt("Standup: relay reconnect fix shipped, twin seeds Drive now.\n"), ago: 1 });
+  add("Q4 planning", DOC, "root", { by: priya, ago: 1 });
+  const brand = add("Brand assets", FOLDER, "root", { by: priya, ago: 7 });
+  add("Logo usage.pdf", "application/pdf", brand, { by: priya, data: PDF, ago: 8 });
+  const eng = add("Engineering", FOLDER, "drv-1");
+  add("On-call runbook", DOC, eng, { ago: 3 });
+  add("Marketing", FOLDER, "drv-1");
+  add("Team directory", SHEET, "drv-1", { ago: 10 });
+
+  const visible = (where: DriveWhere): DriveItem[] => {
+    const live = items.filter((i) => !i.trashed);
+    const theirs = (i: DriveItem) => i.owners?.[0] && !i.owners[0].me;
+    switch (where.kind) {
+      case "root": return live.filter((i) => i.parents?.includes("root") && !theirs(i));
+      case "folder": return live.filter((i) => i.parents?.includes(where.id));
+      case "shared": return live.filter(theirs);
+      case "starred": return live.filter((i) => i.starred);
+      case "recent": return live.filter((i) => i.mimeType !== FOLDER).sort((a, b) => (b.modifiedTime ?? "").localeCompare(a.modifiedTime ?? ""));
+      case "trash": return items.filter((i) => i.trashed);
+      case "search": return live.filter((i) => i.name.toLowerCase().includes(where.query.toLowerCase()));
+      case "drives": return [];
+    }
+  };
+  const byFolderName = (a: DriveItem, b: DriveItem) => Number(b.mimeType === FOLDER) - Number(a.mimeType === FOLDER) || a.name.localeCompare(b.name);
+  const wait = (ms = 140) => new Promise<void>((r) => setTimeout(r, ms));
+  const find = (id: string) => {
+    const f = items.find((i) => i.id === id);
+    if (!f) throw new Error(`File not found: ${id}.`);
+    return f;
+  };
+  return {
+    async driveStatus() { await wait(60); return connected; },
+    async driveConnect() { await wait(700); connected = true; return true; },
+    async driveList(where) {
+      await wait();
+      const list = visible(where);
+      return { files: (where.kind === "recent" || where.kind === "trash" ? list : [...list].sort(byFolderName)).map((f) => ({ ...f })) };
+    },
+    async driveDrives() { await wait(); return drives; },
+    async driveCreateFolder(name, parent) { await wait(); return { ...find(add(name, FOLDER, parent, { ago: 0 })) }; },
+    async driveUpload(file, parent) {
+      const data = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(file); });
+      await wait(300);
+      return { ...find(add(file.name, file.type || "application/octet-stream", parent, { data, ago: 0 })) };
+    },
+    async driveUpdate(id, patch, move) {
+      await wait();
+      const f = find(id);
+      Object.assign(f, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
+      if (move) {
+        f.parents = [...(f.parents ?? []).filter((p) => p !== move.remove), move.add];
+        f.driveId = move.add === "drv-1" || items.find((i) => i.id === move.add)?.driveId ? "drv-1" : undefined;
+      }
+      f.modifiedTime = new Date().toISOString();
+      return { ...f };
+    },
+    async driveContentUrl(item) {
+      await wait(60);
+      return isGoogleFile(item.mimeType) ? PDF : bytes.get(item.id) ?? txt("");
+    },
+  };
 }

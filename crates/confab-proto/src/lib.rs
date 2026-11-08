@@ -170,6 +170,10 @@ pub const SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/chat.users.availability",
 ];
 
+/// Full Drive access for the Drive view. Not in `SCOPES`: it is asked for on its own
+/// (incremental consent) the first time Drive is opened, so adding it never signs anyone out.
+pub const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive";
+
 #[cfg(test)]
 mod tests {
     use super::*;

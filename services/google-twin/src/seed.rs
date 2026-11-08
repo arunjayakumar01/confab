@@ -517,7 +517,156 @@ pub fn seed(config: &Config, now: DateTime<Utc>) -> Store {
     seed_read_states(&mut store, &mut rng, now);
     seed_tasks(&mut store, now);
     seed_calendar(&mut store, now);
+    seed_drive(&mut store, now);
     store
+}
+
+const DOC: &str = "application/vnd.google-apps.document";
+const SHEET: &str = "application/vnd.google-apps.spreadsheet";
+const SLIDES: &str = "application/vnd.google-apps.presentation";
+
+/// One Drive item for the seed: name, mime type, content, and its sub-items when a folder.
+struct Item {
+    name: String,
+    mime: &'static str,
+    bytes: Vec<u8>,
+    starred: bool,
+    children: Vec<Item>,
+}
+
+fn file(name: impl Into<String>, mime: &'static str, bytes: Vec<u8>) -> Item {
+    Item {
+        name: name.into(),
+        mime,
+        bytes,
+        starred: false,
+        children: Vec::new(),
+    }
+}
+fn folder(name: &'static str, children: Vec<Item>) -> Item {
+    Item {
+        name: name.into(),
+        mime: crate::state::DRIVE_FOLDER,
+        bytes: Vec::new(),
+        starred: false,
+        children,
+    }
+}
+fn starred(mut i: Item) -> Item {
+    i.starred = true;
+    i
+}
+fn text(s: &str) -> Vec<u8> {
+    s.as_bytes().to_vec()
+}
+
+/// Inserts `items` under `parent`, ages them a day apart, and returns the new ids by name.
+fn plant(
+    store: &mut Store,
+    owner: &str,
+    parent: &str,
+    items: Vec<Item>,
+    now: DateTime<Utc>,
+    age: &mut i64,
+) -> Vec<(String, String)> {
+    let mut ids = Vec::new();
+    for it in items {
+        *age += 1;
+        let f = store.new_drive_item(
+            crate::state::DriveFile {
+                owner: owner.to_string(),
+                name: it.name.clone(),
+                content_type: it.mime.to_string(),
+                bytes: it.bytes,
+                starred: it.starred,
+                ..Default::default()
+            },
+            parent,
+            now - Duration::hours(*age * 7),
+        );
+        ids.push((it.name, f.id.clone()));
+        plant(store, owner, &f.id, it.children, now, age);
+    }
+    ids
+}
+
+/// Every user gets a My Drive; Arun shares a few things with everyone; one shared drive.
+fn seed_drive(store: &mut Store, now: DateTime<Utc>) {
+    let pdf = crate::drive::tiny_pdf;
+    let mut age = 0;
+    for (id, display, _) in USERS {
+        let owner = format!("users/{id}");
+        let avatar = avatar_svg(id).unwrap_or_default().into_bytes();
+        plant(store, &owner, "root", vec![
+            starred(folder("Projects", vec![
+                folder("Payments revamp", vec![
+                    file("Payments revamp spec", DOC, Vec::new()),
+                    file("Rollout checklist.md", "text/markdown", text("# Rollout\n\n- [x] Feature flag\n- [ ] Canary 5%\n- [ ] Full rollout\n")),
+                    file("latency.csv", "text/csv", text("day,p50_ms,p95_ms\nMon,82,210\nTue,79,198\nWed,91,260\n")),
+                ]),
+                file("Roadmap", SLIDES, Vec::new()),
+            ])),
+            folder("Receipts", vec![
+                file("Laptop invoice.pdf", "application/pdf", pdf("Laptop invoice")),
+                file("Travel October.pdf", "application/pdf", pdf("Travel October")),
+            ]),
+            folder("Photos", vec![file("Profile.svg", "image/svg+xml", avatar)]),
+            starred(file("Budget 2026", SHEET, Vec::new())),
+            file(format!("{display} notes.txt"), "text/plain", text("Ideas, links and reminders.\n")),
+        ], now, &mut age);
+    }
+
+    // Shared by Arun with everyone else.
+    let arun = "users/1001";
+    let others: Vec<String> = USERS
+        .iter()
+        .skip(1)
+        .map(|(id, _, _)| format!("users/{id}"))
+        .collect();
+    let shared = plant(
+        store,
+        arun,
+        "root",
+        vec![
+            file("Q4 planning", DOC, Vec::new()),
+            folder(
+                "Brand assets",
+                vec![
+                    file("Logo usage.pdf", "application/pdf", pdf("Logo usage")),
+                    file(
+                        "Colours.json",
+                        "application/json",
+                        text("{\n  \"navy\": \"#121c3a\",\n  \"blue\": \"#1a66d9\"\n}\n"),
+                    ),
+                ],
+            ),
+        ],
+        now,
+        &mut age,
+    );
+    for (_, id) in shared {
+        store.share_tree(&id, &others);
+    }
+
+    store.shared_drives.insert("drv-1".into(), "Team".into());
+    plant(
+        store,
+        arun,
+        "drv-1",
+        vec![
+            folder(
+                "Engineering",
+                vec![
+                    file("On-call runbook", DOC, Vec::new()),
+                    file("Architecture.pdf", "application/pdf", pdf("Architecture")),
+                ],
+            ),
+            folder("Marketing", vec![file("Launch plan", SLIDES, Vec::new())]),
+            file("Team directory", SHEET, Vec::new()),
+        ],
+        now,
+        &mut age,
+    );
 }
 
 /// The Standup's Meet link, fixed so scripts can find it.

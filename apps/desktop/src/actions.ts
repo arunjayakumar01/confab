@@ -1,14 +1,16 @@
 import { huddleOf, isHuddleStart } from "./lib/meet";
 // Every side effect lives here: bridge calls, realtime frames, navigation. Components only read the store.
 import { detectShell, getBridge } from "./bridge";
-import type { Attachment, Bridge, CalEvent, ChatEvent, CustomStatus, EmojiReactionSummary, EventInput, Message, PresenceState, ServerMsg, ShellEvent, Space, Task, User } from "./bridge-types";
+import type { Attachment, Bridge, CalEvent, ChatEvent, CustomStatus, DriveItem, DriveWhere, EmojiReactionSummary, EventInput, Message, PresenceState, ServerMsg, ShellEvent, Space, Task, User } from "./bridge-types";
+import { isFolder, isGoogleFile, targetId } from "./lib/drive";
+import { previewKind } from "./lib/files";
 import { addDays, endOf, isAllDay, nextUp, startOf, startOfWeek } from "./lib/cal";
 import { plainText } from "./lib/markdown";
 import { driveFromText } from "./lib/files";
 import { clientIdOf, uuid } from "./lib/ids";
 import { Huddle, type HuddleSignalPayload } from "./lib/huddle";
 import { chime, unlockAudio } from "./lib/sound";
-import { bodyOf, byTime, dmPeer, draftKey, emptyPage, mentionsMe, patch, remove, spaceLabel, todayKey, upsert, useStore, type CalView, type Feed, type Note, type Prefs, type State } from "./store";
+import { bodyOf, byTime, dmPeer, draftKey, emptyPage, mentionsMe, patch, remove, spaceLabel, todayKey, upsert, useStore, type CalView, type DriveFolder, type Feed, type Note, type Prefs, type State } from "./store";
 
 let bridge: Bridge;
 const S = useStore;
@@ -22,6 +24,7 @@ export async function boot(): Promise<void> {
   bridge.onMessage(handleFrame);
   window.setInterval(pruneTyping, 1000);
   bridge.onFileDrop?.((paths) => {
+    if (S.getState().ui.feed === "drive") { void driveUploadPaths(paths); return; }
     const { activeSpace, thread, panel } = S.getState().ui;
     if (activeSpace) for (const p of paths) void uploadPathAndSend(activeSpace, p, panel === "thread" ? thread : undefined);
   });
@@ -95,6 +98,7 @@ function wireHtmlDrop(): void {
     e.preventDefault();
     depth = 0;
     ui({ dragOver: false });
+    if (S.getState().ui.feed === "drive") { void driveUploadFiles(Array.from(e.dataTransfer?.files ?? [])); return; }
     const { activeSpace, thread, panel } = S.getState().ui;
     if (!activeSpace) return;
     for (const f of Array.from(e.dataTransfer?.files ?? [])) void uploadAndSend(activeSpace, f, panel === "thread" ? thread : undefined).catch((err) => toast(String(err)));
@@ -692,6 +696,7 @@ export function openFeed(feed: Feed): void {
   if (feed === "todos") void loadTasks();
   if (feed === "calendar") void openCalendar();
   if (feed === "notes") void loadNotes();
+  if (feed === "drive") void openDrive();
   // The directory view lists everyone from every space; DMs loaded at boot, the rest load now (cached after).
   if (feed === "people") for (const sp of s.spaces) if (sp.spaceType !== "DIRECT_MESSAGE") void ensureMembers(sp.name);
   ui({ feed, search: { ...s.ui.search, open: false }, switcher: false, composeOpen: false });
@@ -1489,4 +1494,158 @@ export { byTime };
 /** Dev only: feed a relay/shell frame as if the bridge delivered it. */
 export function injectFrame(m: ServerMsg | ShellEvent): void {
   handleFrame(m);
+}
+
+// ---- Drive: the user's Drive, with incremental consent so the chat sign-in is never redone ----
+const D = () => S.getState().drive;
+const setDrive = (p: Partial<State["drive"]>) => S.setState((s) => ({ drive: { ...s.drive, ...p } }));
+const pinKey = () => `prism.drivePins.${S.getState().auth.user?.email ?? "me"}`;
+let driveSeq = 0;
+
+export async function openDrive(): Promise<void> {
+  try { setDrive({ pins: JSON.parse(localStorage.getItem(pinKey()) ?? "[]") as DriveFolder[] }); } catch { /* no pins yet */ }
+  if (D().connected !== true) {
+    try { setDrive({ connected: await bridge.driveStatus() }); } catch (e) { setDrive({ connected: false, error: String(e) }); }
+  }
+  if (!D().connected) return;
+  void bridge.driveDrives().then((drives) => setDrive({ drives })).catch(() => {});
+  await driveLoad();
+}
+
+/** Opens Google's consent page for Drive alone; the current sign-in stays as it is. */
+export async function connectDrive(): Promise<void> {
+  setDrive({ connecting: true, error: undefined });
+  try {
+    const ok = await bridge.driveConnect();
+    setDrive({ connected: ok, connecting: false, error: ok ? undefined : "Drive access was not given." });
+    if (ok) await openDrive();
+  } catch (e) {
+    setDrive({ connecting: false, error: String(e) });
+  }
+}
+
+/** Loads the current place; `more` appends the next page. A newer load wins over a slower older one. */
+export async function driveLoad(more = false): Promise<void> {
+  const { where, nextPageToken } = D();
+  if (where.kind === "drives") { setDrive({ items: [], nextPageToken: undefined, loading: false, error: undefined }); return; }
+  const seq = ++driveSeq;
+  setDrive({ loading: true, error: undefined, ...(more ? {} : { items: [], nextPageToken: undefined }) });
+  try {
+    const page = await bridge.driveList(where, more ? nextPageToken : undefined);
+    if (seq !== driveSeq) return;
+    setDrive({ items: more ? [...D().items, ...page.files] : page.files, nextPageToken: page.nextPageToken, loading: false });
+  } catch (e) {
+    if (seq !== driveSeq) return;
+    const msg = String(e);
+    // A sign-in that lost Drive access (revoked in the Google account) goes back to the connect card.
+    if (/insufficient|PERMISSION_DENIED.*scope|403/i.test(msg) && /scope/i.test(msg)) setDrive({ connected: false, loading: false });
+    else setDrive({ loading: false, error: msg });
+  }
+}
+
+export function driveGo(where: DriveWhere, trail: DriveFolder[] = []): void {
+  setDrive({ where, trail, query: where.kind === "search" ? D().query : "" });
+  void driveLoad();
+}
+
+/** The folder new files and folders go into, when the current place has one. */
+export function driveParent(): string | undefined {
+  const w = D().where;
+  return w.kind === "root" ? "root" : w.kind === "folder" ? w.id : undefined;
+}
+
+export function driveOpenFolder(f: DriveFolder): void {
+  const { where, trail } = D();
+  const base = where.kind === "folder" ? trail : [];
+  const at = base.findIndex((t) => t.id === f.id);
+  driveGo({ kind: "folder", id: f.id, driveId: f.driveId }, at >= 0 ? base.slice(0, at + 1) : [...base, f]);
+}
+
+/** Folders open in place; files open in the viewer when it can show them, else in Google Drive. */
+export async function driveOpen(item: DriveItem): Promise<void> {
+  if (isFolder(item)) { driveOpenFolder({ id: targetId(item), name: item.name, driveId: item.driveId }); return; }
+  const google = isGoogleFile(item.mimeType);
+  const mime = google ? "application/pdf" : item.mimeType;
+  const name = google ? `${item.name}.pdf` : item.name;
+  if (!previewKind(mime, name)) { if (item.webViewLink) void openExternal(item.webViewLink); return; }
+  try {
+    const url = await bridge.driveContentUrl(item.shortcutDetails ? { ...item, id: targetId(item), mimeType: item.shortcutDetails.targetMimeType ?? item.mimeType } : item);
+    openViewer(url, name, mime, item.webViewLink);
+  } catch (e) { toast(`Could not open ${item.name}: ${String(e)}`); }
+}
+
+export async function driveDownload(item: DriveItem): Promise<void> {
+  try {
+    const url = await bridge.driveContentUrl(item);
+    await saveAttachment(url, isGoogleFile(item.mimeType) ? `${item.name}.pdf` : item.name);
+  } catch (e) { toast(`Could not download: ${String(e)}`); }
+}
+
+/** Swaps the updated item into the list, or drops it when it no longer belongs in this place. */
+function driveReplace(next: DriveItem): void {
+  const w = D().where;
+  const parent = w.kind === "root" ? "root" : w.kind === "folder" ? w.id : undefined;
+  const gone = (w.kind === "trash" ? !next.trashed : next.trashed) || (w.kind === "starred" && !next.starred) || (!!parent && !next.parents?.includes(parent));
+  setDrive({ items: gone ? D().items.filter((i) => i.id !== next.id) : D().items.map((i) => (i.id === next.id ? next : i)) });
+}
+
+async function driveUpdate(item: DriveItem, patchItem: { name?: string; starred?: boolean; trashed?: boolean }, done: string, move?: { add: string; remove: string }): Promise<void> {
+  try { driveReplace(await bridge.driveUpdate(item.id, patchItem, move)); toast(done); }
+  catch (e) { toast(`Drive said no: ${String(e)}`); }
+}
+export const driveRename = (item: DriveItem, name: string) => driveUpdate(item, { name }, `Renamed to ${name}`);
+export const driveStar = (item: DriveItem) => driveUpdate(item, { starred: !item.starred }, item.starred ? "Removed from Starred" : "Added to Starred");
+export const driveTrash = (item: DriveItem) => driveUpdate(item, { trashed: true }, `${item.name} moved to the bin`);
+export const driveRestore = (item: DriveItem) => driveUpdate(item, { trashed: false }, `${item.name} restored`);
+export const driveMove = (item: DriveItem, to: DriveFolder) => driveUpdate(item, {}, `Moved to ${to.name}`, { add: to.id, remove: (item.parents ?? []).join(",") });
+
+export async function driveNewFolder(name: string): Promise<void> {
+  const parent = driveParent();
+  if (!parent) return;
+  try {
+    const f = await bridge.driveCreateFolder(name, parent);
+    setDrive({ items: [f, ...D().items] });
+    toast(`Created ${name}`);
+  } catch (e) { toast(`Could not create the folder: ${String(e)}`); }
+}
+
+async function driveUploading<T>(n: number, work: () => Promise<T>): Promise<T | undefined> {
+  setDrive({ uploading: D().uploading + n });
+  try { return await work(); } catch (e) { toast(`Upload failed: ${String(e)}`); return undefined; }
+  finally { setDrive({ uploading: Math.max(0, D().uploading - n) }); }
+}
+export async function driveUploadFiles(files: File[]): Promise<void> {
+  const parent = driveParent();
+  if (!parent) { toast("Open My Drive or a folder to upload into it"); return; }
+  for (const f of files) {
+    const up = await driveUploading(1, () => bridge.driveUpload(f, parent));
+    if (up && driveParent() === parent) setDrive({ items: [up, ...D().items] });
+  }
+  if (files.length) toast(files.length === 1 ? `Uploaded ${files[0]!.name}` : `Uploaded ${files.length} files`);
+}
+export async function driveUploadPaths(paths: string[]): Promise<void> {
+  const parent = driveParent();
+  if (!parent || !bridge.driveUploadPath) { toast("Open My Drive or a folder to upload into it"); return; }
+  for (const p of paths) {
+    const up = await driveUploading(1, () => bridge.driveUploadPath!(p, parent));
+    if (up && driveParent() === parent) setDrive({ items: [up, ...D().items] });
+  }
+}
+
+/** Pinned folders live on this device, per account. */
+export function driveTogglePin(f: DriveFolder): void {
+  const was = D().pins.some((p) => p.id === f.id);
+  const pins = was ? D().pins.filter((p) => p.id !== f.id) : [...D().pins, f];
+  setDrive({ pins });
+  try { localStorage.setItem(pinKey(), JSON.stringify(pins)); } catch { /* storage full or blocked: pins last this session */ }
+  toast(was ? `Unpinned ${f.name}` : `Pinned ${f.name}`);
+}
+
+export async function driveCopyLink(item: DriveItem): Promise<void> {
+  if (!item.webViewLink) return;
+  try { await navigator.clipboard.writeText(item.webViewLink); toast("Link copied"); } catch { toast("Could not copy the link"); }
+}
+
+export function driveUi(p: Partial<Pick<State["drive"], "renaming" | "moving" | "newFolder" | "query">>): void {
+  setDrive(p);
 }

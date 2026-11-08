@@ -7,7 +7,7 @@ use crate::profile::{AccountInfo, Profile};
 use crate::shell::{user_from_info, AuthStatus};
 use base64::Engine;
 use confab_proto::chat::{TokenResponse, UserInfo};
-use confab_proto::{Endpoints, SCOPES};
+use confab_proto::{Endpoints, DRIVE_SCOPE, SCOPES};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -50,6 +50,11 @@ pub fn has_required_scopes(granted: Option<&str>) -> bool {
         .all(|s| have.contains(s))
 }
 
+/// True when `scope` is among the granted ones.
+pub fn has_scope(granted: Option<&str>, scope: &str) -> bool {
+    granted.is_some_and(|g| g.split_whitespace().any(|s| s == scope))
+}
+
 fn now_secs() -> i64 {
     chrono::Utc::now().timestamp()
 }
@@ -81,19 +86,30 @@ pub fn build_auth_url(
     redirect_uri: &str,
     state: &str,
     challenge: &str,
+    extra: Option<(&str, &str)>,
 ) -> Result<String, String> {
     let mut url = url::Url::parse(&endpoints.oauth_auth)
         .map_err(|e| format!("bad PRISM_OAUTH_AUTH {}: {e}", endpoints.oauth_auth))?;
+    let mut scopes = SCOPES.join(" ");
+    if let Some((scope, _)) = extra {
+        scopes = format!("{scopes} {scope}");
+    }
     url.query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", &endpoints.client_id)
         .append_pair("redirect_uri", redirect_uri)
-        .append_pair("scope", &SCOPES.join(" "))
+        .append_pair("scope", &scopes)
         .append_pair("state", state)
         .append_pair("code_challenge", challenge)
         .append_pair("code_challenge_method", "S256")
         .append_pair("access_type", "offline")
         .append_pair("prompt", "consent");
+    if let Some((_, email)) = extra {
+        // Incremental consent: keep what was granted and preselect the signed-in account.
+        url.query_pairs_mut()
+            .append_pair("include_granted_scopes", "true")
+            .append_pair("login_hint", email);
+    }
     if let Ok(user) = std::env::var("PRISM_TWIN_USER") {
         if !user.trim().is_empty() {
             url.query_pairs_mut().append_pair("twin_user", user.trim());
@@ -413,6 +429,29 @@ impl Auth {
     /// The whole interactive flow: loopback listener, system browser, code
     /// exchange, userinfo, persist. Resolves when the user is signed in.
     pub async fn start(&self) -> Result<AuthStatus, String> {
+        self.start_with(None).await
+    }
+
+    /// True when the stored sign-in includes Drive access.
+    pub fn has_drive(&self) -> bool {
+        self.lock()
+            .as_ref()
+            .is_some_and(|a| has_scope(a.scopes.as_deref(), DRIVE_SCOPE))
+    }
+
+    /// Asks Google for Drive access on top of the current sign-in. The chat sign-in stays
+    /// valid throughout; a different account picked in the browser is refused.
+    pub async fn grant_drive(&self) -> Result<bool, String> {
+        let email = self
+            .user()
+            .ok_or("not signed in")?
+            .email
+            .ok_or("the signed-in account has no email")?;
+        self.start_with(Some((DRIVE_SCOPE, email.as_str()))).await?;
+        Ok(self.has_drive())
+    }
+
+    async fn start_with(&self, extra: Option<(&str, &str)>) -> Result<AuthStatus, String> {
         let _flow = self
             .flow_gate
             .try_lock()
@@ -424,7 +463,7 @@ impl Auth {
         let redirect_uri = format!("http://127.0.0.1:{port}/callback");
         let (verifier, challenge) = pkce_pair();
         let state = random_state();
-        let url = build_auth_url(&self.endpoints, &redirect_uri, &state, &challenge)?;
+        let url = build_auth_url(&self.endpoints, &redirect_uri, &state, &challenge, extra)?;
         let headless_twin = std::env::var("PRISM_TWIN_USER")
             .map(|u| !u.trim().is_empty())
             .unwrap_or(false)
@@ -454,6 +493,14 @@ impl Auth {
             .map_err(|_| "sign-in timed out waiting for the browser".to_string())??;
         let tr = self.exchange_code(&code, &verifier, &redirect_uri).await?;
         let user = fetch_userinfo(&self.http, &self.endpoints.userinfo, &tr.access_token).await?;
+        if let Some((_, email)) = extra {
+            let got = user.email.as_deref().unwrap_or("another account");
+            if !got.eq_ignore_ascii_case(email) {
+                return Err(format!(
+                    "Drive access was given for {got}, not {email}. Try again and pick {email}."
+                ));
+            }
+        }
         let stored = StoredAuth {
             access_token: tr.access_token,
             refresh_token: tr.refresh_token,
@@ -694,7 +741,7 @@ mod tests {
             client_id: "prism-dev".into(),
             client_secret: None,
         };
-        let url = build_auth_url(&ep, "http://127.0.0.1:4321/callback", "st", "ch").unwrap();
+        let url = build_auth_url(&ep, "http://127.0.0.1:4321/callback", "st", "ch", None).unwrap();
         let parsed = url::Url::parse(&url).unwrap();
         let q: HashMap<String, String> = parsed.query_pairs().into_owned().collect();
         assert_eq!(q["response_type"], "code");
@@ -706,6 +753,26 @@ mod tests {
         assert_eq!(q["prompt"], "consent");
         assert_eq!(q["state"], "st");
         assert_eq!(q["scope"], SCOPES.join(" "));
+        assert!(!q.contains_key("include_granted_scopes"));
+
+        let url = build_auth_url(
+            &ep,
+            "http://127.0.0.1:4321/callback",
+            "st",
+            "ch",
+            Some((DRIVE_SCOPE, "ana@example.test")),
+        )
+        .unwrap();
+        let q: HashMap<String, String> = url::Url::parse(&url)
+            .unwrap()
+            .query_pairs()
+            .into_owned()
+            .collect();
+        assert_eq!(q["scope"], format!("{} {DRIVE_SCOPE}", SCOPES.join(" ")));
+        assert_eq!(q["include_granted_scopes"], "true");
+        assert_eq!(q["login_hint"], "ana@example.test");
+        assert!(has_scope(Some(&q["scope"]), DRIVE_SCOPE));
+        assert!(!has_scope(Some(&SCOPES.join(" ")), DRIVE_SCOPE));
     }
 
     #[test]

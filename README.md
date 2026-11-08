@@ -35,7 +35,7 @@
 
 ## What is Confab?
 
-Confab is an unofficial, open source desktop client for [Google Chat](https://workspace.google.com/products/chat/) and Google Workspace, built with Tauri, Rust and React. You sign in with your Workspace account and it talks to Google's own APIs, so spaces, direct messages and threads stay in sync with Chat on the web and on your phone. Google Meet huddles, Google Calendar, Google Tasks and notes sit in the same window. Nobody else on your team has to install it.
+Confab is an unofficial, open source desktop client for [Google Chat](https://workspace.google.com/products/chat/) and Google Workspace, built with Tauri, Rust and React. You sign in with your Workspace account and it talks to Google's own APIs, so spaces, direct messages and threads stay in sync with Chat on the web and on your phone. Google Meet huddles, Google Calendar, Google Drive, Google Tasks and notes sit in the same window. Nobody else on your team has to install it.
 
 ## Google Chat desktop app features
 
@@ -98,7 +98,8 @@ Google Tasks is built in, and any message can become a task. Notes are saved pri
 
 | | |
 | --- | --- |
-| **Files** | Preview PDFs, Word documents, spreadsheets, zip archives, code, video and audio without leaving the app |
+| **Google Drive** | Browse My Drive, Shared with me, shared drives, Starred, Recent and the bin. Pin folders to the side, search, upload by drop, make folders, rename, move, star, and restore from the bin |
+| **Files** | Preview PDFs, Word documents, spreadsheets, zip archives, code, video and audio without leaving the app. Google Docs, Sheets and Slides preview as PDF |
 | **Several accounts** | Keep Google accounts side by side, each with its own unread badge |
 | **Status** | Set your status and do not disturb here, and Gmail and Chat show the same thing |
 | **Unreads and Saved** | Catch up by space, bookmark messages and jump straight back to them |
@@ -111,7 +112,7 @@ Google Tasks is built in, and any message can become a task. Notes are saved pri
 > Google's API leaves out typing indicators, online status for other people and read receipts. Confab carries these through a small relay service of its own, so you only see them from teammates who also use Confab.
 
 > [!WARNING]
-> Confab is early software. Messaging, huddles you start, and sign-in have been used against real Google. Incoming huddle rings, status changes, saving notes, switching accounts, creating events and deleted-message handling have so far only been tested against the local stand-in.
+> Confab is early software. Messaging, huddles you start, and sign-in have been used against real Google. Incoming huddle rings, status changes, saving notes, switching accounts, creating events, deleted-message handling and the Drive view have so far only been tested against the local stand-in.
 
 ## Run Confab locally
 
@@ -163,7 +164,7 @@ Using your real account takes about ten minutes and needs:
 make gcp-setup PROJECT=my-project ACCOUNT=you@your-org
 ```
 
-The script creates what it can and prints links to the two console pages it can't fill in for you. The [full guide](docs/ARCHITECTURE.md#connect-to-your-google-workspace-admin-about-ten-minutes) covers each step.
+The script creates what it can and prints links to the two console pages it can't fill in for you. The Drive view asks for one more permission the first time you open it, and your chat sign-in stays as it is. The [full guide](docs/ARCHITECTURE.md#connect-to-your-google-workspace-admin-about-ten-minutes) covers each step.
 
 Your tokens are stored on your machine. The app sends your access token to the relay you run, which uses it to check with Google who you are and which spaces you belong to. There is no Confab-hosted server.
 

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Account, CalEvent, CalendarEntry, CustomStatus, LinkPreview, MeetParticipant, Membership, Message, PresenceState, Space, Task, User } from "./bridge-types";
+import type { Account, CalEvent, CalendarEntry, CustomStatus, DriveItem, DriveWhere, LinkPreview, SharedDrive, MeetParticipant, Membership, Message, PresenceState, Space, Task, User } from "./bridge-types";
 import type { ShellKind } from "./bridge";
 
 export interface MessagePage { items: Message[]; nextPageToken?: string; loaded: boolean; loading: boolean }
@@ -14,7 +14,9 @@ export interface Prefs {
 export interface Toast { id: number; text: string }
 /** A bookmarked message with enough of a snapshot to list it before its space is loaded. */
 export interface SavedItem { name: string; space: string; at: string; text?: string; sender?: User; createTime?: string }
-export type Feed = "unreads" | "saved" | "todos" | "people" | "calendar" | "notes";
+export type Feed = "unreads" | "saved" | "todos" | "people" | "calendar" | "notes" | "drive";
+/** A folder in the Drive breadcrumb or the pinned list. */
+export interface DriveFolder { id: string; name: string; driveId?: string }
 export type CalView = "day" | "week" | "month" | "agenda";
 /** A Keep-style note; the whole list lives as one JSON document in Drive app data. */
 export interface Note { id: string; title: string; body: string; color: string; pinned: boolean; updated: string }
@@ -49,6 +51,13 @@ export interface State {
     loaded: boolean; loading: boolean; error?: string; view: CalView; day: string; selected?: string; editing?: Partial<CalEvent> | null; polledAt?: number;
   };
   notes: { items: Note[]; loaded: boolean; saving: boolean; error?: string; query: string; editing?: string };
+  drive: {
+    /** Whether the sign-in includes Drive access; undefined until asked. */
+    connected?: boolean; connecting: boolean;
+    where: DriveWhere; trail: DriveFolder[]; items: DriveItem[]; nextPageToken?: string; loading: boolean; error?: string;
+    drives: SharedDrive[]; pins: DriveFolder[]; query: string; uploading: number;
+    renaming?: DriveItem; moving?: DriveItem; newFolder: boolean;
+  };
   huddles: Record<string, string[]>; // space -> users in a Confab voice huddle, from the relay
   /** The huddle I am in: Meet-backed (Google's own, open in the browser, who is in from the Meet API) or Confab voice. */
   huddle: {
@@ -140,6 +149,7 @@ export const useStore = create<State>()((set) => ({
   accounts: [],
   calendar: { calendars: [], events: {}, syncTokens: {}, hidden: load<string[]>("prism.calHidden", []), loaded: false, loading: false, view: "week", day: todayKey() },
   notes: { items: [], loaded: false, saving: false, query: "" },
+  drive: { connecting: false, where: { kind: "root" }, trail: [], items: [], loading: false, drives: [], pins: [], query: "", uploading: 0, newFolder: false },
   huddles: {},
   huddle: { active: false, participants: [], muted: false, listenOnly: false, peers: {}, speaking: [] },
   pinned: load<Record<string, string[]>>(PIN_KEY, {}),

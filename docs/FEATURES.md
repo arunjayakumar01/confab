@@ -50,6 +50,16 @@ If a Meet can't be created, Confab falls back to in-app voice, which only reache
 - **Todos** is your default Google Tasks list. Any message can become a task.
 - **Notes** are Confab's own, because Google Keep has no API for signed-in users. They are stored in a private app folder in your Google Drive, so they follow you to any Confab.
 
+## Google Drive
+
+- **Places**: My Drive, Shared with me, Shared drives, Starred, Recent and the bin.
+- **Folders**: open folders in place with a path you can click back through. Pin any folder to the side of the Drive view. Pins stay on this computer, per account.
+- **Search** by file name and content.
+- **Add**: make folders, upload with the New button or by dropping files on the view, or start a Google Doc, Sheet or Slides in the browser.
+- **Change**: rename, move to another folder or shared drive, star, move to the bin and restore from it.
+- **Open**: preview files in the app. Google Docs, Sheets and Slides preview as PDF. Download, copy the link, or open the file in Google Drive to share it.
+- **Permission**: the first time you open Drive, your browser asks once for Drive access. Your chat sign-in stays as it is.
+
 ## Files
 
 Files open inside the app without a download:
@@ -64,7 +74,7 @@ Files open inside the app without a download:
 | Text and code | Line numbers |
 | Video and audio | Built-in player |
 
-Presentations have no preview yet and save to your computer. Google Drive files open in your browser.
+Presentations have no preview yet and save to your computer. Google Docs, Sheets and Slides preview as PDF.
 
 ## Accounts and status
 

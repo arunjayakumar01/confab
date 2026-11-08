@@ -3,7 +3,8 @@ import { UserAttentionType, getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import type { Account, Attachment, AuthStatus, Availability, Bridge, CalEvent, CalendarEntry, ClientMsg, EventsPage, LinkPreview, MeetSpace, MeetStatus, Membership, Message, Page, ServerMsg, ShellEvent, Space, Task, User } from "../bridge-types";
+import type { Account, Attachment, AuthStatus, Availability, Bridge, CalEvent, CalendarEntry, ClientMsg, DriveItem, DrivePage, EventsPage, LinkPreview, MeetSpace, MeetStatus, Membership, Message, Page, ServerMsg, ShellEvent, SharedDrive, Space, Task, User } from "../bridge-types";
+import { driveQuery } from "../lib/drive";
 
 type Listener = (m: ServerMsg | ShellEvent) => void;
 
@@ -131,6 +132,26 @@ export function createDesktopBridge(): Bridge {
     calendarDeleteEvent: (calendarId, eventId) => invoke<void>("calendar_delete_event", { calendarId, eventId }),
     notesLoad: () => invoke<string | null>("notes_load"),
     notesSave: (json) => invoke<void>("notes_save", { json }),
+    driveStatus: () => invoke<boolean>("drive_status"),
+    driveConnect: () => invoke<boolean>("drive_connect"),
+    driveList: async (where, pageToken) => {
+      const { q, orderBy, driveId } = driveQuery(where);
+      const r = await invoke<Partial<DrivePage>>("drive_list", { q, orderBy, driveId: driveId ?? null, pageToken: pageToken ?? null });
+      return { files: r.files ?? [], nextPageToken: r.nextPageToken };
+    },
+    driveDrives: () => invoke<{ drives?: SharedDrive[] }>("drive_drives").then((r) => r.drives ?? []),
+    driveCreateFolder: (name, parent) => invoke<DriveItem>("drive_create_folder", { name, parent }),
+    driveUpload: async (file, parent) => {
+      const path = (file as File & { path?: string }).path;
+      if (path) return invoke<DriveItem>("drive_upload", { path, parent });
+      const buf = new Uint8Array(await file.arrayBuffer());
+      return invoke<DriveItem>("drive_upload_bytes", buf, {
+        headers: { "x-prism-parent": parent, "x-prism-name": b64utf8(file.name), "x-prism-mime": file.type || "application/octet-stream" },
+      });
+    },
+    driveUploadPath: (path, parent) => invoke<DriveItem>("drive_upload", { path, parent }),
+    driveUpdate: (id, patch, move) => invoke<DriveItem>("drive_update", { id, patch, addParents: move?.add ?? null, removeParents: move?.remove ?? null }),
+    driveContentUrl: (item) => invoke<string>("drive_content_url", { id: item.id, mime: item.mimeType }),
     createMeet: () => invoke<MeetSpace>("create_meet"),
     meetStatus: (code) => invoke<MeetStatus>("meet_status", { code }),
     postHuddle: (space, meetingUri, meetingCode, mentionAll) => invoke<Message>("post_huddle", { space, meetingUri, meetingCode, mentionAll: !!mentionAll }),

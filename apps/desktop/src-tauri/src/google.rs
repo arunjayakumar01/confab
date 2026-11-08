@@ -795,7 +795,8 @@ impl Google {
                     &boundary,
                     &serde_json::json!({ "name": NOTES_FILE, "parents": ["appDataFolder"] })
                         .to_string(),
-                    json,
+                    "application/json",
+                    json.as_bytes(),
                 );
                 let content_type = format!("multipart/related; boundary={boundary}");
                 self.call_raw(None, true, |c| {
@@ -807,6 +808,141 @@ impl Google {
                 .await
                 .map(|_| ())
             }
+        }
+    }
+
+    // ----- Drive (the Drive view; needs DRIVE_SCOPE) -----
+
+    /// `files.list` with a Drive query built by the web view. Every drive the user can
+    /// reach is searched unless `drive_id` narrows it to one shared drive.
+    pub async fn drive_list(
+        &self,
+        q: &str,
+        order_by: &str,
+        drive_id: Option<&str>,
+        page_token: Option<&str>,
+    ) -> Result<serde_json::Value, ApiError> {
+        let url = format!("{}/files", self.drive_base);
+        let fields = format!("nextPageToken,files({DRIVE_FILE_FIELDS})");
+        self.call_json(None, false, |c| {
+            let mut r = c.get(&url).query(&[
+                ("q", q),
+                ("fields", fields.as_str()),
+                ("pageSize", "100"),
+                ("supportsAllDrives", "true"),
+                ("includeItemsFromAllDrives", "true"),
+            ]);
+            r = match drive_id {
+                Some(d) => r.query(&[("corpora", "drive"), ("driveId", d)]),
+                None => r.query(&[("corpora", "allDrives")]),
+            };
+            if let Some(t) = page_token.filter(|t| !t.is_empty()) {
+                r = r.query(&[("pageToken", t)]);
+            }
+            // Google refuses orderBy on fullText searches, so the caller sends it empty there.
+            if !order_by.is_empty() {
+                r = r.query(&[("orderBy", order_by)]);
+            }
+            r
+        })
+        .await
+    }
+
+    /// `drives.list`: the shared drives the user is a member of.
+    pub async fn drive_drives(&self) -> Result<serde_json::Value, ApiError> {
+        let url = format!("{}/drives", self.drive_base);
+        self.call_json(None, false, |c| {
+            c.get(&url)
+                .query(&[("pageSize", "100"), ("fields", "drives(id,name)")])
+        })
+        .await
+    }
+
+    /// `files.create` of a folder (metadata only).
+    pub async fn drive_create_folder(
+        &self,
+        name: &str,
+        parent: &str,
+    ) -> Result<serde_json::Value, ApiError> {
+        let url = format!("{}/files", self.drive_base);
+        let body =
+            serde_json::json!({ "name": name, "mimeType": DRIVE_FOLDER, "parents": [parent] });
+        self.call_json(None, true, |c| {
+            c.post(&url)
+                .query(&[("supportsAllDrives", "true"), ("fields", DRIVE_FILE_FIELDS)])
+                .json(&body)
+        })
+        .await
+    }
+
+    /// `files.create` with content: a `multipart/related` upload into `parent`.
+    pub async fn drive_upload(
+        &self,
+        name: &str,
+        mime: &str,
+        parent: &str,
+        bytes: Vec<u8>,
+    ) -> Result<serde_json::Value, ApiError> {
+        let url = format!("{}/files", self.drive_upload_base);
+        let boundary = format!("confab-{}", uuid::Uuid::new_v4().simple());
+        let metadata = serde_json::json!({ "name": name, "parents": [parent] }).to_string();
+        // note: one multipart request holds the file in memory; Google wants resumable uploads above 5 MB.
+        let body = multipart_related(&boundary, &metadata, mime, &bytes);
+        let content_type = format!("multipart/related; boundary={boundary}");
+        self.call_json(None, true, |c| {
+            c.post(&url)
+                .query(&[
+                    ("uploadType", "multipart"),
+                    ("supportsAllDrives", "true"),
+                    ("fields", DRIVE_FILE_FIELDS),
+                ])
+                .header(reqwest::header::CONTENT_TYPE, content_type.as_str())
+                .body(body.clone())
+        })
+        .await
+    }
+
+    /// `files.update` of metadata (`name`, `starred`, `trashed`), and a move when
+    /// `add_parents` / `remove_parents` are given.
+    pub async fn drive_update(
+        &self,
+        id: &str,
+        patch: &serde_json::Value,
+        add_parents: Option<&str>,
+        remove_parents: Option<&str>,
+    ) -> Result<serde_json::Value, ApiError> {
+        let url = format!("{}/files/{}", self.drive_base, path_segment(id));
+        let body = drive_patch_body(patch);
+        self.call_json(None, true, |c| {
+            let mut r = c
+                .patch(&url)
+                .query(&[("supportsAllDrives", "true"), ("fields", DRIVE_FILE_FIELDS)]);
+            if let Some(p) = add_parents.filter(|p| !p.is_empty()) {
+                r = r.query(&[("addParents", p)]);
+            }
+            if let Some(p) = remove_parents.filter(|p| !p.is_empty()) {
+                r = r.query(&[("removeParents", p)]);
+            }
+            r.json(&body)
+        })
+        .await
+    }
+
+    /// The URL that serves a file's bytes: Google Docs, Sheets and Slides are exported
+    /// as PDF, everything else is downloaded as stored.
+    pub fn drive_content_url(&self, id: &str, mime: &str) -> String {
+        if mime.starts_with("application/vnd.google-apps.") {
+            format!(
+                "{}/files/{}/export?mimeType=application%2Fpdf",
+                self.drive_base,
+                path_segment(id)
+            )
+        } else {
+            format!(
+                "{}/files/{}?alt=media&supportsAllDrives=true",
+                self.drive_base,
+                path_segment(id)
+            )
         }
     }
 
@@ -1322,6 +1458,21 @@ fn respond_as_self(attendees: &[Attendee], response: &str) -> Option<Vec<serde_j
 // ----- Drive API shapes -----
 
 /// The one file Confab keeps in the app-data folder.
+/// The file fields the Drive view reads.
+const DRIVE_FILE_FIELDS: &str = "id,name,mimeType,parents,starred,trashed,modifiedTime,size,webViewLink,iconLink,owners(displayName,emailAddress,photoLink,me),shared,driveId,shortcutDetails,capabilities(canEdit,canRename,canTrash,canAddChildren,canDownload)";
+const DRIVE_FOLDER: &str = "application/vnd.google-apps.folder";
+
+/// Only the metadata the Drive view may change goes to Google.
+fn drive_patch_body(patch: &serde_json::Value) -> serde_json::Value {
+    let mut out = serde_json::Map::new();
+    for key in ["name", "starred", "trashed"] {
+        if let Some(v) = patch.get(key) {
+            out.insert(key.to_string(), v.clone());
+        }
+    }
+    serde_json::Value::Object(out)
+}
+
 const NOTES_FILE: &str = "prism-notes.json";
 /// `files.list` filter for it.
 const NOTES_QUERY: &str = "name='prism-notes.json'";
@@ -1346,20 +1497,21 @@ struct DriveFile {
 }
 
 /// Google's `multipart/related` upload: the metadata JSON part, then the content part.
-fn multipart_related(boundary: &str, metadata: &str, content: &str) -> Vec<u8> {
+fn multipart_related(
+    boundary: &str,
+    metadata: &str,
+    content_type: &str,
+    content: &[u8],
+) -> Vec<u8> {
     let mut body = Vec::with_capacity(metadata.len() + content.len() + 256);
     body.extend_from_slice(
         format!(
-            "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata}\r\n"
+            "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata}\r\n--{boundary}\r\nContent-Type: {content_type}\r\n\r\n"
         )
         .as_bytes(),
     );
-    body.extend_from_slice(
-        format!(
-            "--{boundary}\r\nContent-Type: application/json\r\n\r\n{content}\r\n--{boundary}--\r\n"
-        )
-        .as_bytes(),
-    );
+    body.extend_from_slice(content);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
     body
 }
 
@@ -1656,10 +1808,48 @@ mod tests {
         );
         assert!(respond_as_self(&attendees[1..], "accepted").is_none());
 
-        let body = multipart_related("b", r#"{"name":"n"}"#, "{}");
+        let body = multipart_related("b", r#"{"name":"n"}"#, "application/json", b"{}");
         let text = String::from_utf8(body).unwrap();
         assert!(text.starts_with("--b\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"name\":\"n\"}\r\n--b\r\n"));
-        assert!(text.ends_with("\r\n\r\n{}\r\n--b--\r\n"));
+        assert!(text.ends_with("Content-Type: application/json\r\n\r\n{}\r\n--b--\r\n"));
+        let bin = multipart_related("b", "{}", "image/png", &[0x89, 0x00, 0xff]);
+        assert!(bin.windows(3).any(|w| w == [0x89, 0x00, 0xff]));
+    }
+
+    #[test]
+    fn drive_patches_and_content_urls() {
+        let body = drive_patch_body(&serde_json::json!({
+            "name": "Plan", "starred": true, "trashed": false, "parents": ["x"], "owners": []
+        }));
+        assert_eq!(
+            body,
+            serde_json::json!({ "name": "Plan", "starred": true, "trashed": false })
+        );
+        let g = Google::new(
+            Client::new(),
+            Arc::new(crate::auth::Auth::new(
+                confab_proto::Endpoints::from_env(),
+                crate::auth::TokenStore::File {
+                    path: std::env::temp_dir().join("confab-drive-test-auth.json"),
+                },
+                Client::new(),
+                None,
+            )),
+            "http://t",
+            "http://t",
+            "http://t",
+            "http://t",
+            "http://t",
+            "http://t/drive/v3",
+        );
+        assert_eq!(
+            g.drive_content_url("a b", "application/vnd.google-apps.document"),
+            "http://t/drive/v3/files/a%20b/export?mimeType=application%2Fpdf"
+        );
+        assert_eq!(
+            g.drive_content_url("f1", "application/pdf"),
+            "http://t/drive/v3/files/f1?alt=media&supportsAllDrives=true"
+        );
     }
 
     #[test]

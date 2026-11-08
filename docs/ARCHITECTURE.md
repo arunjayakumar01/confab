@@ -81,10 +81,16 @@ All paths under `PRISM_CHAT_API`. Bearer token on every call. JSON camelCase as 
 | respond to event | the same `PATCH` with body `{attendees: [the whole list, the caller's entry with responseStatus: accepted \| declined \| tentative]}` | the `CalEvent`; the shell fetches the event, flips the attendee marked `self`, and patches the list back |
 | delete event | `DELETE {calendar_api}/calendars/{id}/events/{eventId}?sendUpdates=all` | 204, no body; the twin keeps the event as `cancelled` for syncs and answers 410 to a second delete |
 | notes file | `GET {drive_api}/files?spaces=appDataFolder&q=name%3D%27prism-notes.json%27&fields=files(id,name,modifiedTime)` then `GET {drive_api}/files/{id}?alt=media` | Drive app-data folder; `{files: [{id, name, modifiedTime}]}` then the JSON text; scope `drive.appdata`. The twin keeps app data per caller with ids `file-{n}` |
+| drive list | `GET {drive_api}/files?q=&orderBy=&fields=nextPageToken,files(...)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives` (or `corpora=drive&driveId=` inside a shared drive) | `{files, nextPageToken?}`; scope `drive`. The web view builds `q` (`lib/drive.ts`): `'id' in parents`, `sharedWithMe`, `starred`, `trashed = bool`, `fullText contains '...'`, `mimeType != '...'`, joined by `and`; `orderBy` is empty for `fullText` searches, which Google refuses to sort. The twin accepts that grammar and matches `fullText` against names |
+| drive write | `POST {drive_api}/files` (folder metadata), `POST {upload}/files?uploadType=multipart` with `parents`, `PATCH {drive_api}/files/{id}[?addParents=&removeParents=]` body any of `{name, starred, trashed}`, `GET {drive_api}/files/{id}/export?mimeType=application/pdf` for Docs Editors files, `GET {drive_api}/drives` | the file with the same fields; scope `drive` |
 | save notes | `PATCH {upload}/files/{id}?uploadType=media` (content-type `application/json`, the text) when the file exists, else `POST {upload}/files?uploadType=multipart` with a `multipart/related` body: `{"name": "prism-notes.json", "parents": ["appDataFolder"]}` as `application/json`, then the text as `application/json`; `{upload}` is `{drive_api}` with `/upload/drive/v3` in place of `/drive/v3` | `{id, name, mimeType, modifiedTime}` |
 
 OAuth: authorization code + PKCE (S256), loopback redirect `http://127.0.0.1:{port}/callback`,
 scopes = `confab_proto::SCOPES`, `access_type=offline&prompt=consent` to get a refresh token.
+`DRIVE_SCOPE` (`drive`) is not in `SCOPES`: the Drive view asks for it on its own with `include_granted_scopes=true`
+and `login_hint`, so adding it never signs anyone out. A different account picked in the browser is refused. The twin
+remembers each token's scopes, keeps them across refreshes, and answers 403 `PERMISSION_DENIED` to a Drive call
+without `drive`.
 Token endpoint takes form fields `grant_type`, `code`, `code_verifier`, `redirect_uri`, `client_id`
 (and `refresh_token` for `grant_type=refresh_token`).
 Errors are Google-shaped: `{"error": {"code", "message", "status"}}` with 401/403/404/409/429.
@@ -168,6 +174,15 @@ Tauri commands (JS sends camelCase keys, Rust params are snake_case; Tauri conve
 | `calendar_delete_event` | `calendarId`, `eventId` | deletes for everyone (`sendUpdates=all`) |
 | `notes_load` | | the notes JSON as text (`string \| null`): `prism-notes.json` from the Drive app-data folder, `null` before the first save |
 | `notes_save` | `json` (the text to store) | creates or replaces `prism-notes.json` in the app-data folder |
+| `drive_status` | | `bool`: the stored sign-in includes the `drive` scope |
+| `drive_connect` | | `bool`: runs the incremental consent for `drive` in the browser |
+| `drive_list` | `q`, `orderBy`, `driveId?`, `pageToken?` | Drive's `{files, nextPageToken?}` |
+| `drive_drives` | | Drive's `{drives: [{id, name}]}` |
+| `drive_create_folder` | `name`, `parent` | the new folder |
+| `drive_upload` | `path`, `parent` | the uploaded file (a dropped path) |
+| `drive_upload_bytes` | raw IPC body = the bytes; headers `x-prism-parent`, `x-prism-name` (base64 of UTF-8), `x-prism-mime?` | the uploaded file |
+| `drive_update` | `id`, `patch` (`name`, `starred`, `trashed`), `addParents?`, `removeParents?` | the updated file |
+| `drive_content_url` | `id`, `mime` | a `prism-media` URL for the bytes, or a PDF export of a Docs Editors file; the Drive API origin is allowed on that scheme |
 | `notify` | `title`, `body` | shell only: a native notification through the notification plugin. A `cargo tauri dev` build is not an app bundle, so macOS shows these as from Terminal and asks permission once. |
 | `relay_send` | `msg: ClientMsg` | |
 | `accounts_list` | | `Account[]` `{id, email?, displayName?, photo?, signedIn, active, unread}`: every profile under the app data dir, the active one first, then by id. `id` is the profile directory name; `unread` counts messages that arrived while the account was not active |
